@@ -21,7 +21,6 @@ class RoomScheduler:
     通过构造函数注入 gt_room（用于发布事件）和 get_read_index（用于持久化）。
     """
 
-    SYSTEM_MEMBER_ID = int(SpecialAgent.SYSTEM.value)
     OPERATOR_MEMBER_ID = int(SpecialAgent.OPERATOR.value)
 
     def __init__(
@@ -106,8 +105,8 @@ class RoomScheduler:
 
         self._last_speaker_id = caller_agent_id
         self._go_next_agent()
-        await self.persist_state()
         next_id = self._advance_to_first_dispatchable()
+        await self.persist_state()
         if next_id is not None:
             self.publish_status(next_id, need_scheduling=True)
         return True
@@ -152,10 +151,11 @@ class RoomScheduler:
 
     def _should_stop(self) -> bool:
         """当前是否已达到停止调度的条件。"""
+        ai_ids = {aid for aid in self._gt_room.agent_ids if aid != self.OPERATOR_MEMBER_ID}
+        all_skipped = bool(ai_ids and ai_ids.issubset(self._current_round_skipped_set))
         if self._gt_room.type == RoomType.PRIVATE:
             # 私聊停止条件 1：所有 AI 成员均已跳过发言
-            ai_ids = {aid for aid in self._gt_room.agent_ids if aid != self.OPERATOR_MEMBER_ID}
-            if ai_ids and ai_ids.issubset(self._current_round_skipped_set):
+            if all_skipped:
                 return True
             # 私聊停止条件 2：轮到同一个 agent，且上次也是该 agent 发言（Operator 未介入）
             if (self._last_speaker_id is not None
@@ -167,8 +167,7 @@ class RoomScheduler:
             if self._gt_room.max_rounds > 0 and self._round_count >= self._gt_room.max_rounds:
                 return True
             # 群聊停止条件 2：所有 AI 成员均已跳过发言
-            ai_ids = {aid for aid in self._gt_room.agent_ids if aid != self.OPERATOR_MEMBER_ID}
-            return bool(ai_ids and ai_ids.issubset(self._current_round_skipped_set))
+            return all_skipped
         return False
 
     def _advance_to_first_dispatchable(self) -> Optional[int]:
