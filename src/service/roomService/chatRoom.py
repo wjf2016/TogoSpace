@@ -222,8 +222,11 @@ class ChatRoom:
             messageBus.publish(MessageBusTopic.ROOM_MSG_ADDED, gt_room=self.gt_room, gt_message=message)
 
         if not insert_immediately and not is_queued and update_turn_state and self._agent_ids:
-            self._scheduler.on_message(sender_id)
-            if sender_id == self.OPERATOR_MEMBER_ID:
+            next_agent_id = self._scheduler.on_message(sender_id)
+            if next_agent_id is not None:
+                await self._scheduler.persist_state()
+                self._scheduler.publish_status(next_agent_id, need_scheduling=True)
+            if sender_id == self.OPERATOR_MEMBER_ID and next_agent_id is None:
                 await self.handle_finish_request(self.OPERATOR_MEMBER_ID)
 
     async def flush_pending_immediate_messages(self) -> None:

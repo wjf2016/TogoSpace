@@ -163,6 +163,45 @@ class TestRoomTurnLogic(ServiceTestCase):
                 need_scheduling=True,
             )
 
+    async def test_idle_wakeup_by_non_current_agent_message(self):
+        """
+        测试点：IDLE 群聊中，非当前发言位的普通 Agent 发消息时，应唤醒房间并调度当前发言位。
+        """
+        room_name = "idle_agent_wakeup"
+        agents = ["alice", "bob", "charlie"]
+        room_key = f"{room_name}@{TEAM}"
+        await self.create_room(TEAM, room_name, agents, max_rounds=10)
+        room = roomService.get_room_by_key(room_key)
+        assert await room.activate_scheduling()
+
+        alice_id = await self._get_agent_id("alice")
+        bob_id = await self._get_agent_id("bob")
+        charlie_id = await self._get_agent_id("charlie")
+
+        with patch("service.messageBus.publish"):
+            await room.handle_finish_request(alice_id)
+            await room.handle_finish_request(bob_id)
+            await room.handle_finish_request(charlie_id)
+
+        assert room.state == RoomState.IDLE
+        assert room.get_current_turn_agent_id() == charlie_id
+
+        with patch("service.messageBus.publish") as mock_publish:
+            await room.add_message(alice_id, "hello from another room")
+
+            assert room.state == RoomState.SCHEDULING
+            assert room._round_count == 0
+            assert room._round_skipped_set == set()
+            assert room.get_current_turn_agent_id() == charlie_id
+
+            turn_calls = [
+                c for c in mock_publish.call_args_list
+                if c[0][0] == MessageBusTopic.ROOM_STATUS_CHANGED
+                and c[1].get("need_scheduling")
+            ]
+            assert len(turn_calls) == 1
+            assert turn_calls[0][1]["current_turn_agent_id"] == charlie_id
+
     async def test_full_loop_advancement(self):
         """
         测试点：完整轮次计数逻辑

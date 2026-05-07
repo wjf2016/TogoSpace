@@ -127,10 +127,24 @@ class RoomScheduler:
         logger.info("房间 %s 当前 turn 被人工停止，切回 IDLE 等待新消息唤醒", self._key)
         self.publish_status(current_turn_agent_id=None)
 
-    def on_message(self, sender_id: int) -> None:
-        """收到消息时标记当前 turn 是否有内容产出。"""
-        if sender_id == self.get_current_turn_agent_id():
+    def on_message(self, sender_id: int) -> Optional[int]:
+        """收到消息时更新调度状态，必要时返回下一位待调度 Agent。"""
+        current_id = self.get_current_turn_agent_id()
+        if sender_id == current_id:
             self.current_turn_has_content = True
+            return None
+
+        if self._state != RoomState.SCHEDULING:
+            logger.info("检测到房间 %s 的活动 (agent=%s)，重置轮次计数器并唤醒房间",
+                        self._key, gtAgentManager.get_agent_name(sender_id))
+            self._last_speaker_id = None
+            self._round_count = 0
+            self._current_round_skipped_set = set()
+            self.current_turn_has_content = False
+            self._state = RoomState.SCHEDULING
+            return self._advance_to_first_dispatchable()
+
+        return None
 
     def is_idle(self) -> bool:
         return self._state == RoomState.IDLE
