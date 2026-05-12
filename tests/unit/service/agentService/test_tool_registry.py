@@ -84,11 +84,12 @@ def test_apply_tool_allow_specs() -> None:
 @pytest.mark.asyncio
 async def test_execute_tool_call_success() -> None:
     registry = AgentToolRegistry()
-    
+
     # 显式定义的 handler，方便断言参数
     async def mock_handler(args_str: str, context: ToolCallContext) -> dict:
-        return {"success": True, "files": ["a.txt"], "passed_context": context}
-        
+        # 不要返回 context 对象，会引起 jsonUtil 递归（尤其是 mock 对象）
+        return {"success": True, "time": "12:00", "handled_tool": context.tool_name}
+
     tool = llmApiUtil.OpenAITool(
         function=llmApiUtil.OpenAIFunction(
             name="list_dir",
@@ -97,22 +98,19 @@ async def test_execute_tool_call_success() -> None:
         )
     )
     registry.register(tool, mock_handler)
-    
+
     mock_room = MagicMock()
     ctx = ToolCallContext(agent_id=1, team_id=1, chat_room=mock_room)
-    
+
     result = await registry.execute_tool_call(
         llmApiUtil.OpenAIToolCall(id="tc_1", function={"name": "list_dir", "arguments": "{}"}),
         context=ctx
     )
-    
+
     assert result.success is True
-    assert result.result["files"] == ["a.txt"]
-    
-    called_ctx = result.result["passed_context"]
-    assert isinstance(called_ctx, ToolCallContext)
-    assert called_ctx.tool_name == "list_dir"
-    assert called_ctx.chat_room == mock_room
+    assert result.result["time"] == "12:00"
+    assert result.result["handled_tool"] == "list_dir"
+
 
 @pytest.mark.asyncio
 async def test_execute_tool_call_unknown_tool() -> None:

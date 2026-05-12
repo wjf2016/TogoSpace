@@ -6,7 +6,7 @@ from typing import Any, Awaitable, Callable, Iterable
 
 from constants import ToolCategory
 from service.roomService import ToolCallContext
-from util import llmApiUtil
+from util import llmApiUtil, jsonUtil
 
 ToolHandler = Callable[[str, ToolCallContext], Awaitable[dict[str, Any]]]
 
@@ -190,6 +190,15 @@ class AgentToolRegistry:
             enriched_context = replace(context, tool_name=function_name)
             result = await registered.handler(function_args, enriched_context)
             assert isinstance(result, dict), f"tool result must be dict, got {type(result).__name__}"
+            
+            # 关键修复：使用 jsonUtil 确保结果是纯 JSON 类型（处理 datetime 等）
+            try:
+                result = jsonUtil.object_to_json_data(result)
+            except Exception as e:
+                result = {
+                    "success": False, 
+                    "message": f"工具返回结果处理失败 (Serialization Error): {e}"
+                }
         except Exception as e:
             result = {"success": False, "message": f"工具调用失败: {e}"}
 
