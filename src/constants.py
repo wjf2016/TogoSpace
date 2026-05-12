@@ -1,6 +1,6 @@
 import re
 from enum import Enum, auto
-from typing import Any, Union, Optional
+from typing import Any, Optional, Self, Union
 
 
 class EnhanceEnum(Enum):
@@ -9,7 +9,7 @@ class EnhanceEnum(Enum):
         return re.sub(r"[^a-z0-9]+", "_", value.strip().lower()).strip("_")
 
     @classmethod
-    def value_of(cls, value: Optional[Union[int, str]]):
+    def value_of(cls, value: Optional[Union[int, str]]) -> Self | None:
         if value is None:
             return None
 
@@ -31,7 +31,7 @@ class EnhanceEnum(Enum):
         return None
 
     @classmethod
-    def _missing_(cls, value):
+    def _missing_(cls, value: Any) -> Self | None:
         """支持字符串大小写不敏感匹配。
 
         匹配顺序：
@@ -47,7 +47,7 @@ class EnhanceEnum(Enum):
                     return member
         return None
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return '[' + self.name + ']'
 
 
@@ -119,10 +119,19 @@ class RoleTemplateType(EnhanceEnum):
 
 
 class ToolCategory(EnhanceEnum):
-    ADMIN = auto()
-    READ = auto()
-    WRITE = auto()
-    EXECUTE = auto()
+    ADMIN = auto()    # 团队管理工具
+    BASIC = auto()    # 群聊协作基础工具
+    READ = auto()     # 通用只读查询工具
+    WRITE = auto()    # 通用写入类工具
+    EXECUTE = auto()  # 通用执行/控制类工具
+
+    @classmethod
+    def from_spec(cls, spec: str) -> "ToolCategory | None":
+        """解析 'Category:Xxx' 格式的类别规格字符串，返回对应的 ToolCategory。"""
+        prefix, sep, category_name = spec.partition(":")
+        if sep != ":" or prefix.strip().lower() != "category":
+            return None
+        return cls.value_of(category_name)
 
 
 class SystemConfigKey(EnhanceEnum):

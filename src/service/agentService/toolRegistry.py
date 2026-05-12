@@ -4,6 +4,8 @@ import json
 from dataclasses import dataclass, replace
 from typing import Any, Awaitable, Callable
 
+from constants import ToolCategory
+from service.funcToolService.core import resolve_enabled_tool_names
 from service.roomService import ToolCallContext
 from util import llmApiUtil
 
@@ -22,7 +24,9 @@ class ToolExecutionResult:
 class RegisteredTool:
     tool: llmApiUtil.OpenAITool
     handler: ToolHandler
+    category: ToolCategory | None = None
     marks_turn_finish: bool = False
+    enabled: bool = True
 
 
 class AgentToolRegistry:
@@ -45,14 +49,33 @@ class AgentToolRegistry:
         self._tools_by_name[name] = RegisteredTool(
             tool=tool,
             handler=handler,
+            category=tool.category,
             marks_turn_finish=marks_turn_finish,
         )
 
     def export_openai_tools(self) -> list[llmApiUtil.OpenAITool]:
-        return [item.tool for item in self._tools_by_name.values()]
+        return [item.tool for item in self._tools_by_name.values() if item.enabled]
 
     def get_registered_tool(self, tool_name: str) -> RegisteredTool | None:
         return self._tools_by_name.get(tool_name)
+
+    def list_enabled_tool_names(self) -> list[str]:
+        return [name for name, item in self._tools_by_name.items() if item.enabled]
+
+    def list_registered_tool_names(self) -> list[str]:
+        return list(self._tools_by_name)
+
+    def _set_enabled_tool_names(self, tool_names: list[str]) -> None:
+        enabled_names = set(tool_names)
+        for name, item in self._tools_by_name.items():
+            item.enabled = name in enabled_names
+
+    def apply_tool_allow_specs(self, allow_specs: list[str]) -> None:
+        enabled_names = resolve_enabled_tool_names(
+            self._tools_by_name,
+            allow_specs,
+        )
+        self._set_enabled_tool_names(enabled_names)
 
     async def execute_tool_call(self, tool_call: llmApiUtil.OpenAIToolCall, context: ToolCallContext) -> ToolExecutionResult:
         tool_call.verify()
@@ -63,6 +86,14 @@ class AgentToolRegistry:
         registered = self._tools_by_name.get(function_name)
         if registered is None:
             result = {"success": False, "message": f"未知工具: {function_name}"}
+            return ToolExecutionResult(
+                tool_call_id=tool_call_id,
+                result=result,
+                success=False,
+                error_message=str(result["message"]),
+            )
+        if registered.enabled is False:
+            result = {"success": False, "message": f"工具无权限使用: {function_name}"}
             return ToolExecutionResult(
                 tool_call_id=tool_call_id,
                 result=result,

@@ -8,13 +8,13 @@ if os.name == "posix" and sys.platform == "darwin":
     os.environ.setdefault("OBJC_DISABLE_INITIALIZE_FORK_SAFETY", "YES")
 
 
-def test_normalize_driver_config_defaults_to_native():
+def test_normalize_driver_config_defaults_to_native() -> None:
     cfg = normalize_driver_config({"name": "alice", "model": "test"})
     assert cfg.driver_type == DriverType.NATIVE
     assert cfg.options == {}
 
 
-def test_normalize_driver_config_supports_claude_sdk_driver_with_allowed_tools():
+def test_normalize_driver_config_supports_claude_sdk_driver_with_allowed_tools() -> None:
     cfg = normalize_driver_config(
         {
             "name": "alice",
@@ -24,10 +24,10 @@ def test_normalize_driver_config_supports_claude_sdk_driver_with_allowed_tools()
         }
     )
     assert cfg.driver_type == DriverType.CLAUDE_SDK
-    assert cfg.options["allowed_tools"] == ["Read", "Write"]
+    assert cfg.options == {}
 
 
-def test_normalize_driver_config_filters_local_and_category_allowed_tools_for_claude_sdk():
+def test_normalize_driver_config_filters_local_and_category_allowed_tools_for_claude_sdk() -> None:
     cfg = normalize_driver_config(
         {
             "name": "alice",
@@ -37,10 +37,10 @@ def test_normalize_driver_config_filters_local_and_category_allowed_tools_for_cl
         }
     )
     assert cfg.driver_type == DriverType.CLAUDE_SDK
-    assert cfg.options["allowed_tools"] == ["Read"]
+    assert cfg.options == {}
 
 
-def test_normalize_driver_config_supports_driver_type_enum():
+def test_normalize_driver_config_supports_driver_type_enum() -> None:
     cfg = normalize_driver_config(
         {
             "name": "alice",

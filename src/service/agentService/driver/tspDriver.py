@@ -13,6 +13,8 @@ import appPaths
 from service.agentService.driver.base import AgentDriverConfig
 
 from service import funcToolService
+from service.funcToolService.core import load_func_tools, build_effective_tool_allow_specs
+from service.funcToolService.toolConfig import CATEGORY_CONFIG
 from service.roomService import ToolCallContext
 from model.dbModel.gtAgentTask import GtAgentTask
 from util import llmApiUtil
@@ -20,16 +22,6 @@ from util import llmApiUtil
 from .base import AgentDriver, AgentTurnSetup
 
 logger = logging.getLogger(__name__)
-
-_LOCAL_TOOL_NAMES = [
-    "get_time",
-    "get_dept_info",
-    "get_room_info",
-    "get_agent_info",
-    "wake_up_agent",
-    "send_chat_msg",
-    "finish_chat_turn",
-]
 _DEFAULT_REQUEST_TIMEOUT_SEC = 65
 _RUN_CHAT_TURN_MAX_RETRIES = 3
 _RUN_CHAT_TURN_HINT = (
@@ -67,7 +59,8 @@ class TspAgentDriver(AgentDriver):
         super().__init__(host, config)
         self._client: Optional[TSPClient] = None
         self._tsp_tools: dict[str, llmApiUtil.OpenAITool] = {}
-        _local = funcToolService.get_tools_by_names(_LOCAL_TOOL_NAMES)
+        load_func_tools()
+        _local:list[llmApiUtil.OpenAITool] = funcToolService.get_tools()
         self._local_tools: dict[str, llmApiUtil.OpenAITool] = {t.function.name: t for t in _local}
         self._connect_lock = asyncio.Lock()
 
@@ -183,6 +176,20 @@ class TspAgentDriver(AgentDriver):
 
         for tool in self._tsp_tools.values():
             self.host.tool_registry.register(tool, self._execute_tsp_tool)
+        self._apply_tool_policy()
+
+    def _apply_tool_policy(self) -> None:
+        configured_names = self.config.options.get("local_tool_names")
+        if configured_names:
+            self.host.tool_registry._set_enabled_tool_names(list(configured_names))
+            return
+
+        effective_specs = build_effective_tool_allow_specs(
+            self.config.options.get("tool_allow_specs"),
+            is_root_leader=bool(self.config.options.get("is_root_leader")),
+            default_enable_all=True,
+        )
+        self.host.tool_registry.apply_tool_allow_specs(effective_specs)
 
     @property
     def turn_setup(self) -> AgentTurnSetup:
@@ -247,7 +254,8 @@ class TspAgentDriver(AgentDriver):
                     name=tool.name,
                     description=tool.description,
                     parameters=llmApiUtil.OpenAIFunctionParameter(**tool.input_schema),
-                )
+                ),
+                category=CATEGORY_CONFIG.get(tool.name),
             )
 
         self._tsp_tools = resolved

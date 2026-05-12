@@ -21,7 +21,7 @@ def _make_tool(name: str) -> llmApiUtil.OpenAITool:
 
 
 @pytest.fixture
-def mock_host():
+def mock_host() -> MagicMock:
     host = MagicMock()
     host.gt_agent = MagicMock()
     host.gt_agent.id = 1
@@ -30,18 +30,23 @@ def mock_host():
 
 
 @pytest.fixture
-def driver(mock_host):
+def driver(mock_host: MagicMock) -> NativeAgentDriver:
     config = AgentDriverConfig(driver_type="native", options={})
     return NativeAgentDriver(mock_host, config)
 
 
 @pytest.mark.asyncio
-async def test_native_driver_setup_registers_tools(driver, mock_host):
+async def test_native_driver_setup_registers_tools(
+    driver: NativeAgentDriver,
+    mock_host: MagicMock,
+) -> None:
     send_tool = _make_tool("send_chat_msg")
     finish_tool = _make_tool("finish_chat_turn")
+    wake_tool = _make_tool("wake_up_agent")
+    read_tool = _make_tool("get_time")
 
     run_tool_call = AsyncMock(return_value={"success": True})
-    with patch("service.funcToolService.get_tools", return_value=[send_tool, finish_tool]), patch(
+    with patch("service.funcToolService.get_tools", return_value=[send_tool, finish_tool, wake_tool, read_tool]) as get_tools, patch(
         "service.funcToolService.run_tool_call",
         run_tool_call,
     ):
@@ -65,7 +70,8 @@ async def test_native_driver_setup_registers_tools(driver, mock_host):
     assert "finish_chat_turn" in setup.hint_prompt
 
     exported_names = [t.function.name for t in mock_host.tool_registry.export_openai_tools()]
-    assert exported_names == ["send_chat_msg", "finish_chat_turn"]
+    assert exported_names == ["send_chat_msg", "finish_chat_turn", "wake_up_agent"]
+    get_tools.assert_called_once()
 
     run_tool_call.assert_called_once()
     called_args, called_context = run_tool_call.call_args.args
@@ -77,7 +83,31 @@ async def test_native_driver_setup_registers_tools(driver, mock_host):
 
 
 @pytest.mark.asyncio
-async def test_native_driver_run_chat_turn_is_disabled(driver):
+async def test_native_driver_run_chat_turn_is_disabled(driver: NativeAgentDriver) -> None:
     task = MagicMock(spec=GtAgentTask)
     with pytest.raises(RuntimeError, match="不再直接执行 run_chat_turn"):
         await driver.run_chat_turn(task=task, synced_count=0)
+
+
+@pytest.mark.asyncio
+async def test_native_driver_ignores_local_tool_names_and_uses_basic_category(mock_host: MagicMock) -> None:
+    send_tool = _make_tool("send_chat_msg")
+    finish_tool = _make_tool("finish_chat_turn")
+    wake_tool = _make_tool("wake_up_agent")
+    read_tool = _make_tool("get_time")
+    run_tool_call = AsyncMock(return_value={"success": True})
+
+    driver = NativeAgentDriver(
+        mock_host,
+        AgentDriverConfig(driver_type="native", options={"local_tool_names": ["get_time"]}),
+    )
+
+    with patch("service.funcToolService.get_tools", return_value=[send_tool, finish_tool, wake_tool, read_tool]) as get_tools, patch(
+        "service.funcToolService.run_tool_call",
+        run_tool_call,
+    ):
+        await driver.startup()
+
+    get_tools.assert_called_once()
+    exported_names = [t.function.name for t in mock_host.tool_registry.export_openai_tools()]
+    assert exported_names == ["send_chat_msg", "finish_chat_turn", "wake_up_agent"]

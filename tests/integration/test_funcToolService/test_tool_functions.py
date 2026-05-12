@@ -1,4 +1,4 @@
-"""integration tests for toolLoader utilities and service-backed tool functions"""
+"""integration tests for funcToolType utilities and service-backed tool functions"""
 import os
 import sys
 from typing import Optional
@@ -15,11 +15,12 @@ from model.dbModel.gtAgent import GtAgent
 from model.dbModel.gtDept import GtDept
 from model.dbModel.gtTeam import GtTeam
 from service.roomService import ToolCallContext
-from service.funcToolService.toolLoader import (
+from service.funcToolService.funcToolType import FuncTool
+from service.funcToolService.funcToolType import (
     python_type_to_json_schema,
     get_function_metadata,
-    build_tools,
 )
+from service.funcToolService.core import build_tools
 from service.funcToolService.tools import (
     get_time,
     get_dept_info,
@@ -112,17 +113,20 @@ class TestGetFunctionMetadata(ServiceTestCase):
 class TestBuildtools(ServiceTestCase):
     async def test_builds_tool_for_each_entry(self):
         """注册表中每个函数都应产出一个 OpenAITool 定义。"""
-        tools = build_tools({"get_time": get_time, "get_dept_info": get_dept_info})
+        tools = build_tools([
+            FuncTool("get_time", get_time),
+            FuncTool("get_dept_info", get_dept_info),
+        ])
         assert len(tools) == 2
         assert {t.function.name for t in tools} == {"get_time", "get_dept_info"}
 
     async def test_empty_registry(self):
         """空注册表返回空列表。"""
-        assert build_tools({}) == []
+        assert build_tools([]) == []
 
     async def test_skips_function_with_error(self):
         """构建过程中单个函数异常不影响其他函数。"""
-        assert len(build_tools({"get_time": get_time})) == 1
+        assert len(build_tools([FuncTool("get_time", get_time)])) == 1
 
 class TestToolFunctions(ServiceTestCase):
     @classmethod

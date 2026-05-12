@@ -1,6 +1,8 @@
 """integration tests for ClaudeSdkAgentDriver send/skip routing behavior"""
+from collections.abc import AsyncIterator
 import os
 import sys
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -15,8 +17,9 @@ from service.agentService import Agent
 from service.agentService import promptBuilder
 from service.agentService.driver.claudeSdkDriver import ClaudeSdkAgentDriver
 from service.agentService.driver.base import AgentDriverConfig
-from service.funcToolService.tools import FUNCTION_REGISTRY
-from constants import DriverType, RoleTemplateType, AgentTaskType, SpecialAgent
+from service.funcToolService.core import get_tools
+from service.funcToolService.toolConfig import CATEGORY_CONFIG
+from constants import DriverType, RoleTemplateType, AgentTaskType, SpecialAgent, ToolCategory
 from util import llmApiUtil, configUtil
 from util.configTypes import TeamConfig, AgentConfig, DeptNodeConfig
 from ...base import ServiceTestCase
@@ -32,7 +35,7 @@ class TestSdkDoSend(ServiceTestCase):
     """测试 ClaudeSdkAgentDriver._handle_claude_sdk_tool_call：当前房间 vs 跨房间发言的路由与 done 标记行为。"""
 
     @classmethod
-    async def async_setup_class(cls):
+    async def async_setup_class(cls) -> None:
         db_path = cls._get_test_db_path()
         await ormService.startup(db_path)
         await persistenceService.startup()
@@ -58,14 +61,18 @@ class TestSdkDoSend(ServiceTestCase):
         await agentService.load_all_team_agents()
 
     @classmethod
-    async def async_teardown_class(cls):
+    async def async_teardown_class(cls) -> None:
         await agentService.shutdown()
         funcToolService.shutdown()
         roomService.shutdown()
         await persistenceService.shutdown()
         await ormService.shutdown()
 
-    async def _make_driver_with_room(self, agent_name: str, current_room_name: str):
+    async def _make_driver_with_room(
+        self,
+        agent_name: str,
+        current_room_name: str,
+    ) -> tuple[ClaudeSdkAgentDriver, Agent, Any]:
         """创建房间并从服务获取 agent，模拟调度器注入当前任务上下文的行为。"""
         # 1. roomService 处理持久化和成员关系
         await self.create_room(TEAM, current_room_name, [agent_name])
@@ -99,38 +106,38 @@ class TestSdkDoSend(ServiceTestCase):
             )
         return driver, agent, room
 
-    async def test_send_to_current_room_does_not_set_done(self):
+    async def test_send_to_current_room_does_not_set_done(self) -> None:
         """发到当前房间后，本轮不应结束（_turn_done 应为 False）。"""
         driver, agent, room = await self._make_driver_with_room("alice", "lobby")
         await driver._build_claude_sdk_tool("send_chat_msg").handler({"room_name": "lobby", "msg": "hi everyone"})
         assert not driver._turn_done
 
-    async def test_finish_chat_turn_sets_done(self):
+    async def test_finish_chat_turn_sets_done(self) -> None:
         """调用 finish_chat_turn 后，本轮应结束（_turn_done 置 True）。"""
         driver, agent, room = await self._make_driver_with_room("alice", "lobby")
         await driver._build_claude_sdk_tool("finish_chat_turn").handler({"confirm_no_need_talk": True})
         assert driver._turn_done
 
-    async def test_send_to_current_room_message_appears(self):
+    async def test_send_to_current_room_message_appears(self) -> None:
         """发到当前房间的消息应出现在该房间里。"""
         driver, agent, room = await self._make_driver_with_room("alice", "lobby")
         await driver._build_claude_sdk_tool("send_chat_msg").handler({"room_name": "lobby", "msg": "hi everyone"})
         assert any(m.content == "hi everyone" for m in room.messages)
 
-    async def test_send_to_current_room_result_prompts_to_finish(self):
+    async def test_send_to_current_room_result_prompts_to_finish(self) -> None:
         """发到当前房间时，返回结果应提示可以继续或调用 finish_chat_turn。"""
         driver, agent, room = await self._make_driver_with_room("alice", "lobby")
         result = await driver._build_claude_sdk_tool("send_chat_msg").handler({"room_name": "lobby", "msg": "hi"})
         assert "finish_chat_turn" in result["content"][0]["text"]
 
-    async def test_send_cross_room_does_not_set_done(self):
+    async def test_send_cross_room_does_not_set_done(self) -> None:
         """发到其他房间时，不应结束当前轮次。"""
         driver, agent, current_room = await self._make_driver_with_room("alice", "private")
         await self.create_room(TEAM, "group", ["alice"])
         await driver._build_claude_sdk_tool("send_chat_msg").handler({"room_name": "group", "msg": "hello group"})
         assert not driver._turn_done
 
-    async def test_send_cross_room_lands_in_target(self):
+    async def test_send_cross_room_lands_in_target(self) -> None:
         """跨房间消息应出现在目标房间，而非当前房间。"""
         driver, agent, current_room = await self._make_driver_with_room("alice", "private")
         await self.create_room(TEAM, "group", ["alice"])
@@ -139,7 +146,7 @@ class TestSdkDoSend(ServiceTestCase):
         assert any(m.content == "hello group" for m in group.messages)
         assert not any(m.content == "hello group" for m in current_room.messages)
 
-    async def test_send_cross_room_result_prompts_to_reply_current(self):
+    async def test_send_cross_room_result_prompts_to_reply_current(self) -> None:
         """跨房间发言后，结果应提示 agent 还需回复当前房间。"""
         driver, agent, current_room = await self._make_driver_with_room("alice", "private")
         await self.create_room(TEAM, "group", ["alice"])
@@ -150,13 +157,13 @@ class TestSdkDoSend(ServiceTestCase):
 
 
 class _FakeClaudeClient:
-    def __init__(self):
+    def __init__(self) -> None:
         self.queries: list[str] = []
 
     async def query(self, prompt: str) -> None:
         self.queries.append(prompt)
 
-    async def receive_response(self):
+    async def receive_response(self) -> AsyncIterator[None]:
         if False:
             yield None
 
@@ -167,7 +174,7 @@ class _FakeClaudeClient:
 
 class TestClaudeSdkAgentDriver(ServiceTestCase):
     @classmethod
-    async def async_setup_class(cls):
+    async def async_setup_class(cls) -> None:
         db_path = cls._get_test_db_path()
         await ormService.startup(db_path)
         await persistenceService.startup()
@@ -177,13 +184,13 @@ class TestClaudeSdkAgentDriver(ServiceTestCase):
         await agentService.startup()
 
     @classmethod
-    async def async_teardown_class(cls):
+    async def async_teardown_class(cls) -> None:
         await agentService.shutdown()
         roomService.shutdown()
         await persistenceService.shutdown()
         await ormService.shutdown()
 
-    async def test_run_chat_turn_requires_started_client(self):
+    async def test_run_chat_turn_requires_started_client(self) -> None:
         await self.create_room(TEAM, "lobby", ["alice"])
         room = roomService.get_room_by_key(f"lobby@{TEAM}")
         agent = Agent(
@@ -205,7 +212,7 @@ class TestClaudeSdkAgentDriver(ServiceTestCase):
         except RuntimeError as exc:
             assert "尚未初始化" in str(exc)
 
-    async def test_startup_without_allowed_tools_opens_all_local_tools_and_omits_sdk_allowlist(self):
+    async def test_startup_without_allowed_tools_opens_all_local_tools_and_omits_sdk_allowlist(self) -> None:
         agent = Agent(
             gt_agent=GtAgent(id=1, team_id=1, name="alice", role_template_id=1, model="test-model"),
             system_prompt="test",
@@ -216,7 +223,7 @@ class TestClaudeSdkAgentDriver(ServiceTestCase):
         captured_options = {}
 
         class _FakeClaudeClient:
-            def __init__(self, options):
+            def __init__(self, options: dict[str, Any]) -> None:
                 captured_options.update(options)
 
             async def connect(self) -> None:
@@ -231,10 +238,14 @@ class TestClaudeSdkAgentDriver(ServiceTestCase):
             await driver.startup()
 
         exported_names = [tool.function.name for tool in agent.task_consumer._turn_runner.tool_registry.export_openai_tools()]
-        assert set(exported_names) == set(FUNCTION_REGISTRY.keys())
+        expected_names = {
+            t.function.name for t in get_tools()
+            if CATEGORY_CONFIG.get(t.function.name) != ToolCategory.ADMIN
+        }
+        assert set(exported_names) == expected_names
         assert "allowed_tools" not in captured_options
 
-    async def test_startup_with_allowed_tools_keeps_local_tools_narrow_and_passes_sdk_allowlist(self):
+    async def test_startup_with_tool_allow_specs_keeps_basic_tools_and_passes_sdk_allowlist(self) -> None:
         agent = Agent(
             gt_agent=GtAgent(id=1, team_id=1, name="alice", role_template_id=1, model="test-model"),
             system_prompt="test",
@@ -242,13 +253,45 @@ class TestClaudeSdkAgentDriver(ServiceTestCase):
         )
         driver = ClaudeSdkAgentDriver(
             agent.task_consumer._turn_runner,
-            AgentDriverConfig(driver_type="claude_sdk", options={"allowed_tools": ["Read"]}),
+            AgentDriverConfig(driver_type="claude_sdk", options={"tool_allow_specs": ["Read"]}),
         )
 
         captured_options = {}
 
         class _FakeClaudeClient:
-            def __init__(self, options):
+            def __init__(self, options: dict[str, Any]) -> None:
+                captured_options.update(options)
+
+            async def connect(self) -> None:
+                return None
+
+            async def disconnect(self) -> None:
+                return None
+
+        with patch("service.agentService.driver.claudeSdkDriver.create_sdk_mcp_server", return_value=object()), \
+             patch("service.agentService.driver.claudeSdkDriver.ClaudeAgentOptions", side_effect=lambda **kwargs: kwargs), \
+             patch("service.agentService.driver.claudeSdkDriver.ClaudeSDKClient", side_effect=_FakeClaudeClient):
+            await driver.startup()
+
+        exported_names = [tool.function.name for tool in agent.task_consumer._turn_runner.tool_registry.export_openai_tools()]
+        assert exported_names == ["send_chat_msg", "finish_chat_turn", "wake_up_agent"]
+        assert captured_options["allowed_tools"] == ["Read"]
+
+    async def test_startup_with_local_tool_names_uses_subset_without_sdk_allowlist(self) -> None:
+        agent = Agent(
+            gt_agent=GtAgent(id=1, team_id=1, name="alice", role_template_id=1, model="test-model"),
+            system_prompt="test",
+            driver_config=AgentDriverConfig(driver_type="native"),
+        )
+        driver = ClaudeSdkAgentDriver(
+            agent.task_consumer._turn_runner,
+            AgentDriverConfig(driver_type="claude_sdk", options={"local_tool_names": ["send_chat_msg", "finish_chat_turn"]}),
+        )
+
+        captured_options = {}
+
+        class _FakeClaudeClient:
+            def __init__(self, options: dict[str, Any]) -> None:
                 captured_options.update(options)
 
             async def connect(self) -> None:
@@ -264,9 +307,9 @@ class TestClaudeSdkAgentDriver(ServiceTestCase):
 
         exported_names = [tool.function.name for tool in agent.task_consumer._turn_runner.tool_registry.export_openai_tools()]
         assert exported_names == ["send_chat_msg", "finish_chat_turn"]
-        assert captured_options["allowed_tools"] == ["Read"]
+        assert "allowed_tools" not in captured_options
 
-    async def test_run_chat_turn_uses_max_retries_as_failed_action_retry_limit(self):
+    async def test_run_chat_turn_uses_max_retries_as_failed_action_retry_limit(self) -> None:
         await self.create_room(TEAM, "lobby", ["alice"])
         room = roomService.get_room_by_key(f"lobby@{TEAM}")
         agent = Agent(
@@ -292,7 +335,7 @@ class TestClaudeSdkAgentDriver(ServiceTestCase):
 
         assert len(fake_client.queries) == 2
 
-    async def test_run_chat_turn_prompt_has_context_wrappers_and_blank_lines(self):
+    async def test_run_chat_turn_prompt_has_context_wrappers_and_blank_lines(self) -> None:
         await self.create_room(TEAM, "lobby", ["alice", "bob"])
         room = roomService.get_room_by_key(f"lobby@{TEAM}")
         agent = Agent(

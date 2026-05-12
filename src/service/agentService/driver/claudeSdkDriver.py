@@ -11,8 +11,10 @@ from claude_agent_sdk import (
 
 from service.roomService import ToolCallContext, ChatRoom
 from service.agentService import promptBuilder
-from service.funcToolService.toolLoader import get_function_metadata
-from service.funcToolService.tools import FUNCTION_REGISTRY
+from service.funcToolService.core import get_func_tool, load_func_tools
+from service.funcToolService.funcToolType import get_function_metadata
+from service.funcToolService.core import build_effective_tool_allow_specs
+from service.funcToolService.core import filter_external_allowed_tools
 from service import funcToolService, roomService
 from model.dbModel.gtAgentTask import GtAgentTask
 from model.dbModel.gtAgentHistory import GtAgentHistory
@@ -32,7 +34,7 @@ _REMINDER_PROMPT = (
 _RUN_CHAT_TURN_MAX_RETRIES = 3
 
 
-def _format_sdk_blocks(blocks) -> list[str]:
+def _format_sdk_blocks(blocks: Any) -> list[str]:
     parts: list[str] = []
     block_list = [] if blocks is None else blocks
 
@@ -59,21 +61,17 @@ def _format_sdk_blocks(blocks) -> list[str]:
 
 
 class ClaudeSdkAgentDriver(AgentDriver):
-    def __init__(self, host, config):
+    def __init__(self, host: Any, config: Any) -> None:
         super().__init__(host, config)
         self._sdk_client: ClaudeSDKClient | None = None
         self._turn_done: bool = False  # 当前轮次是否已完成发言，由 tool handler 设置，_run_turn_sdk 检查以决定是否中断/退出
         self._tool_call_counter: int = 0  # tool_call_id 计数器
 
-    _CHAT_TOOL_NAMES = ("send_chat_msg", "finish_chat_turn")
-
-    def _has_explicit_allowed_tools(self) -> bool:
-        return "allowed_tools" in self.config.options
-
-    def _get_local_tool_names(self) -> list[str]:
-        if self._has_explicit_allowed_tools():
-            return list(self._CHAT_TOOL_NAMES)
-        return list(FUNCTION_REGISTRY.keys())
+    def _get_external_allowed_tools(self) -> list[str] | None:
+        tool_allow_specs = self.config.options.get("tool_allow_specs")
+        if tool_allow_specs is None:
+            return None
+        return filter_external_allowed_tools(tool_allow_specs)
 
     @property
     def turn_setup(self) -> AgentTurnSetup:
@@ -81,15 +79,26 @@ class ClaudeSdkAgentDriver(AgentDriver):
 
     async def startup(self) -> None:
         await super().startup()
+        load_func_tools()
         self.host.tool_registry.clear()
-        local_tool_names = self._get_local_tool_names()
-        for t in funcToolService.get_tools_by_names(local_tool_names):
+        for t in funcToolService.get_tools():
             fn_name = t.function.name
             self.host.tool_registry.register(
                 t,
                 funcToolService.run_tool_call,
                 marks_turn_finish=fn_name == "finish_chat_turn",
             )
+        configured_names = self.config.options.get("local_tool_names")
+        if configured_names:
+            self.host.tool_registry._set_enabled_tool_names(list(configured_names))
+        else:
+            effective_specs = build_effective_tool_allow_specs(
+                self.config.options.get("tool_allow_specs"),
+                is_root_leader=bool(self.config.options.get("is_root_leader")),
+                default_enable_all=True,
+            )
+            self.host.tool_registry.apply_tool_allow_specs(effective_specs)
+        local_tool_names = self.host.tool_registry.list_enabled_tool_names()
 
         server = create_sdk_mcp_server(
             "chat-tools",
@@ -106,8 +115,9 @@ class ClaudeSdkAgentDriver(AgentDriver):
             "cwd": self.host.agent_workdir,
             "add_dirs": [self.host.agent_workdir],
         }
-        if self._has_explicit_allowed_tools():
-            option_args["allowed_tools"] = self.config.options.get("allowed_tools")
+        external_allowed_tools = self._get_external_allowed_tools()
+        if external_allowed_tools is not None:
+            option_args["allowed_tools"] = external_allowed_tools
         options = ClaudeAgentOptions(**option_args)
 
         os.environ.pop("CLAUDECODE", None)
@@ -165,11 +175,18 @@ class ClaudeSdkAgentDriver(AgentDriver):
         self._tool_call_counter += 1
         return f"claude_sdk_{self._tool_call_counter}"
 
-    def _build_claude_sdk_tool(self, tool_name: str):
-        meta = get_function_metadata(tool_name, FUNCTION_REGISTRY[tool_name])
+    def _build_claude_sdk_tool(self, tool_name: str) -> Any:
+        func_tool = get_func_tool(tool_name)
+        if func_tool is None:
+            raise KeyError(f"unknown func tool: {tool_name}")
+        meta = get_function_metadata(
+            tool_name,
+            func_tool.callable,
+            category=func_tool.category,
+        )
 
         @tool(tool_name, meta["description"], meta["parameters"])
-        async def _wrapped(args):
+        async def _wrapped(args: dict[str, Any]) -> dict[str, Any]:
             # 写入 tool_use 消息到 history
             tool_call_id = self._next_tool_call_id()
             await self.host._history.append_history_message(GtAgentHistory.build(

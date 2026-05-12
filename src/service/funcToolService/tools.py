@@ -1,10 +1,10 @@
 from __future__ import annotations
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 import datetime
 import logging
 from zoneinfo import ZoneInfo
 
-from constants import AgentStatus, RoleTemplateType, RoomState, SpecialAgent, ToolCategory
+from constants import AgentStatus, RoleTemplateType, RoomState, SpecialAgent
 from dal.db import gtAgentManager, gtRoomManager, gtRoleTemplateManager
 from model.dbModel.gtAgent import GtAgent
 from model.dbModel.gtDept import GtDept
@@ -14,20 +14,6 @@ import service.roomService as roomService
 from util import configUtil, i18nUtil
 
 logger = logging.getLogger(__name__)
-
-TOOL_CATEGORIES: dict[str, ToolCategory] = {
-    "get_time": ToolCategory.READ,
-    "get_dept_info": ToolCategory.READ,
-    "get_room_info": ToolCategory.READ,
-    "get_agent_info": ToolCategory.READ,
-    "wake_up_agent": ToolCategory.EXECUTE,
-    "send_chat_msg": ToolCategory.WRITE,
-    "finish_chat_turn": ToolCategory.EXECUTE,
-    "list_role_templates": ToolCategory.READ,
-    "get_role_template": ToolCategory.READ,
-    "save_role_template": ToolCategory.ADMIN,
-    "delete_role_template": ToolCategory.ADMIN,
-}
 
 # Tool 返回值规范
 # 所有 tool 函数统一返回 dict，由 funcToolService.run_tool_call 序列化为 JSON 字符串后交给 LLM。
@@ -488,22 +474,3 @@ async def finish_chat_turn(_context: ToolCallContext = None, confirm_no_need_tal
         logger.warning(f"finish_turn 被房间拒绝（发言位不匹配），但仍视为行动结束: agent_id={_context.agent_id}, current_turn_id={current_id}, room={_context.chat_room.key}")
 
     return {"success": True, "message": "已结束了本轮行动."}
-
-FUNCTION_REGISTRY: dict[str, Callable[..., dict] | Callable[..., object]] = {
-    "get_time": get_time,
-    "send_chat_msg": send_chat_msg,
-    "finish_chat_turn": finish_chat_turn,
-    "get_dept_info": get_dept_info,
-    "get_room_info": get_room_info,
-    "get_agent_info": get_agent_info,
-    "wake_up_agent": wake_up_agent,
-    "list_role_templates": list_role_templates,
-    "get_role_template": get_role_template,
-    "save_role_template": save_role_template,
-    "delete_role_template": delete_role_template,
-}
-
-for _tool_name, _tool_category in TOOL_CATEGORIES.items():
-    _func = FUNCTION_REGISTRY.get(_tool_name)
-    if _func is not None:
-        setattr(_func, "tool_category", _tool_category)

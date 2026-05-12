@@ -1,4 +1,5 @@
 from service import funcToolService
+from service.funcToolService.core import load_func_tools
 from model.dbModel.gtAgentTask import GtAgentTask
 
 from .base import AgentDriver, AgentTurnSetup
@@ -17,14 +18,17 @@ class NativeAgentDriver(AgentDriver):
 
     async def startup(self) -> None:
         await super().startup()
+        load_func_tools()
         self.host.tool_registry.clear()
-        for tool in funcToolService.get_tools():
+        tools = funcToolService.get_tools()
+        for tool in tools:
             function_name = tool.function.name
             self.host.tool_registry.register(
                 tool,
                 funcToolService.run_tool_call,
                 marks_turn_finish=function_name == "finish_chat_turn",
             )
+        self.host.tool_registry.apply_tool_allow_specs(["Category:Basic"])
 
     @property
     def turn_setup(self) -> AgentTurnSetup:

@@ -1,12 +1,16 @@
+from __future__ import annotations
+
 import inspect
 import logging
+from dataclasses import dataclass
+from types import UnionType
+from typing import Any, Callable, Dict, Literal, Union, get_args, get_origin, get_type_hints
+
+from constants import ToolCategory
+from util import llmApiUtil
+from service.funcToolService.toolConfig import CATEGORY_CONFIG
 
 logger = logging.getLogger(__name__)
-from typing import Any, Dict, List, get_type_hints, get_origin, get_args, Literal
-from types import UnionType
-from typing import Union
-
-from util import llmApiUtil
 
 
 def python_type_to_json_schema(python_type: Any) -> Dict[str, Any]:
@@ -45,7 +49,7 @@ def python_type_to_json_schema(python_type: Any) -> Dict[str, Any]:
     return {"type": "object"}
 
 
-def get_function_metadata(func_name: str, func) -> Dict[str, Any]:
+def get_function_metadata(func_name: str, func: Callable[..., Any], *, category: Any = None) -> Dict[str, Any]:
     """使用 inspect 模块提取函数元数据"""
     sig = inspect.signature(func)
 
@@ -90,7 +94,7 @@ def get_function_metadata(func_name: str, func) -> Dict[str, Any]:
     return {
         "name": func_name,
         "description": description,
-        "category": getattr(func, "tool_category", None),
+        "category": category if category is not None else getattr(func, "tool_category", CATEGORY_CONFIG.get(func_name)),
         "parameters": {
             "type": "object",
             "properties": properties,
@@ -99,26 +103,24 @@ def get_function_metadata(func_name: str, func) -> Dict[str, Any]:
     }
 
 
-def build_tools(registry: dict) -> list[llmApiUtil.OpenAITool]:
-    """遍历 registry，构建并返回工具列表。"""
-    tools = []
-    for func_name, func in registry.items():
-        try:
-            metadata: Dict[str, Any] = get_function_metadata(func_name, func)
-            tool = llmApiUtil.OpenAITool(
-                function=llmApiUtil.OpenAIFunction(
-                    name=metadata["name"],
-                    description=metadata["description"],
-                    parameters=llmApiUtil.OpenAIFunctionParameter(
-                        type=metadata["parameters"]["type"],
-                        properties=metadata["parameters"]["properties"],
-                        required=metadata["parameters"].get("required", [])
-                    )
-                ),
-                category=metadata.get("category"),
-            )
-            tools.append(tool)
-            logger.info(f"加载工具函数: name={func_name}")
-        except Exception as e:
-            logger.error(f"加载工具函数失败: name={func_name}, error={e}")
-    return tools
+@dataclass(frozen=True)
+class FuncTool:
+    name: str
+    callable: Callable[..., Any]
+    category: ToolCategory | None = None
+
+    def to_openai_tool(self) -> llmApiUtil.OpenAITool:
+        """将当前工具转换为 OpenAI 工具格式。"""
+        metadata = get_function_metadata(self.name, self.callable, category=self.category)
+        return llmApiUtil.OpenAITool(
+            function=llmApiUtil.OpenAIFunction(
+                name=metadata["name"],
+                description=metadata["description"],
+                parameters=llmApiUtil.OpenAIFunctionParameter(
+                    type=metadata["parameters"]["type"],
+                    properties=metadata["parameters"]["properties"],
+                    required=metadata["parameters"].get("required", [])
+                )
+            ),
+            category=metadata.get("category"),
+        )

@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 from constants import DriverType
-from service.funcToolService.tools import filter_external_allowed_tools
 from .base import AgentDriverConfig
 from .nativeDriver import NativeAgentDriver
 from .claudeSdkDriver import ClaudeSdkAgentDriver
@@ -16,13 +15,13 @@ def normalize_driver_config(role_template_cfg: Mapping[str, Any] | Any) -> Agent
 
     driver_cfg = role_template_cfg.get("driver")
     driver_type = DriverType.value_of(driver_cfg) or DriverType.NATIVE
-    options = {}
-    if driver_type == DriverType.CLAUDE_SDK and role_template_cfg.get("allowed_tools") is not None:
-        options["allowed_tools"] = filter_external_allowed_tools(role_template_cfg.get("allowed_tools", []))
-    return AgentDriverConfig(driver_type=driver_type, options=options)
+    return AgentDriverConfig(driver_type=driver_type, options={})
 
 
-def build_agent_driver(host, driver_config: AgentDriverConfig):
+def build_agent_driver(
+    host: Any,
+    driver_config: AgentDriverConfig,
+) -> NativeAgentDriver | ClaudeSdkAgentDriver | TspAgentDriver:
     driver_type = driver_config.driver_type
     if isinstance(driver_type, str):
         driver_type = DriverType.value_of(driver_type) or DriverType.NATIVE

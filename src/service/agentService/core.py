@@ -3,6 +3,7 @@ import logging
 import os
 from typing import Any, List
 
+from model.dbModel.gtDept import GtDept
 from service.agentService.prompts import BASE_PROMPT, AGENT_IDENTITY_PROMPT
 from util import configUtil, i18nUtil, assertUtil
 from model.dbModel.gtAgent import GtAgent
@@ -74,7 +75,7 @@ async def _load_team_agents(team_id: int, workspace_root: str | None = None) -> 
         [agent.role_template_id for agent in gt_agents]
     )
     templates_by_id = {template.id: template for template in gt_role_templates}
-    dept_root = await deptService.get_dept_tree(team_id)
+    dept_root:GtDept = await deptService.get_dept_tree(team_id)
     top_manager_id = dept_root.manager_id if dept_root is not None else None
 
     app_config = configUtil.get_app_config()
@@ -123,9 +124,10 @@ async def _load_team_agents(team_id: int, workspace_root: str | None = None) -> 
         driver_config = normalize_driver_config(
             {
                 "driver": gt_agent.driver,
-                "allowed_tools": gt_role_template.allowed_tools,
             }
         )
+        driver_config.options["tool_allow_specs"] = gt_role_template.allowed_tools
+        driver_config.options["is_root_leader"] = is_root_leader
         full_prompt = await build_agent_system_prompt(
             team_id=team_id,
             agent_name=agent_name,
