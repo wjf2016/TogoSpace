@@ -290,7 +290,7 @@ async def test_run_tool_to_item_persists_tool_result_into_activity_metadata(turn
         result={"success": True, "content": "demo"},
         success=True,
     ))
-    turn_runner.tool_registry.get_registered_tool = MagicMock(return_value=SimpleNamespace(marks_turn_finish=False))
+    turn_runner.tool_registry.get_registered_tool = MagicMock(return_value=SimpleNamespace(marks_turn_finish=False, self_interrupt=False))
 
     with patch("service.agentService.agentTurnRunner.agentActivityService.add_activity", new=AsyncMock(return_value=MagicMock(id=7))) as mock_add_activity, patch(
         "service.agentService.agentTurnRunner.agentActivityService.update_activity_progress",
