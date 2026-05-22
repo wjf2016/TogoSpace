@@ -1,8 +1,11 @@
 import os
 import sys
 
+import pytest
+
 from tests.base import ServiceTestCase
 from dal.db import gtDeptManager, gtTeamManager, gtAgentManager, gtRoleTemplateManager
+from exception import TogoException
 from model.dbModel.gtDept import GtDept
 from model.dbModel.gtAgentHistory import GtAgentHistory
 from model.dbModel.gtRoom import GtRoom
@@ -349,3 +352,157 @@ class TestUpsertDept(ServiceTestCase):
         assert dept_a is not None and dept_b is not None
         assert bob_id not in dept_a.agent_ids
         assert dave_id not in dept_b.agent_ids
+
+    # ------------------------------------------------------------------
+    # 情况1: DEPT_MANAGER_ALREADY_LEADS
+    # 规则：指定的 leader 不能已经是其他部门的 leader
+    # ------------------------------------------------------------------
+
+    async def test_upsert_dept_raises_when_leader_already_leads_another_dept(self):
+        """平级部门：alice 已是 dept_a 的 leader，不能再成为 dept_b 的 leader。"""
+        await self._reset_tables()
+
+        team = await self._setup_team_with_agents(
+            "t_upsert_leader_dup", ["alice", "bob", "charlie"]
+        )
+        alice_id = await self._get_agent_id(team.id, "alice")
+        bob_id = await self._get_agent_id(team.id, "bob")
+        charlie_id = await self._get_agent_id(team.id, "charlie")
+
+        await deptService.upsert_dept(
+            team_id=team.id, name="dept_a", responsibility="",
+            manager_id=alice_id, agent_ids=[alice_id, bob_id], parent_id=None,
+        )
+
+        with pytest.raises(TogoException) as exc_info:
+            await deptService.upsert_dept(
+                team_id=team.id, name="dept_b", responsibility="",
+                manager_id=alice_id, agent_ids=[alice_id, charlie_id], parent_id=None,
+            )
+        assert exc_info.value.error_code == "DEPT_MANAGER_ALREADY_LEADS"
+
+    async def test_upsert_dept_raises_when_parent_leader_becomes_child_leader(self):
+        """父子层级：alice 已是父部门的 leader，不能再成为子部门的 leader。"""
+        await self._reset_tables()
+
+        team = await self._setup_team_with_agents(
+            "t_upsert_parent_child_leader", ["alice", "bob", "charlie"]
+        )
+        alice_id = await self._get_agent_id(team.id, "alice")
+        bob_id = await self._get_agent_id(team.id, "bob")
+        charlie_id = await self._get_agent_id(team.id, "charlie")
+
+        parent = await deptService.upsert_dept(
+            team_id=team.id, name="company", responsibility="",
+            manager_id=alice_id, agent_ids=[alice_id, bob_id], parent_id=None,
+        )
+
+        with pytest.raises(TogoException) as exc_info:
+            await deptService.upsert_dept(
+                team_id=team.id, name="engineering", responsibility="",
+                manager_id=alice_id, agent_ids=[alice_id, charlie_id], parent_id=parent.id,
+            )
+        assert exc_info.value.error_code == "DEPT_MANAGER_ALREADY_LEADS"
+
+    async def test_upsert_dept_updating_with_same_leader_does_not_raise(self):
+        """更新已有部门时保持同一 leader，不应触发 DEPT_MANAGER_ALREADY_LEADS。"""
+        await self._reset_tables()
+
+        team = await self._setup_team_with_agents(
+            "t_upsert_same_leader", ["alice", "bob", "charlie"]
+        )
+        alice_id = await self._get_agent_id(team.id, "alice")
+        bob_id = await self._get_agent_id(team.id, "bob")
+        charlie_id = await self._get_agent_id(team.id, "charlie")
+
+        first = await deptService.upsert_dept(
+            team_id=team.id, name="dept_a", responsibility="v1",
+            manager_id=alice_id, agent_ids=[alice_id, bob_id], parent_id=None,
+        )
+
+        # 更新 dept_a，alice 继续担任 leader（传入 dept_id）
+        updated = await deptService.upsert_dept(
+            team_id=team.id, name="dept_a", responsibility="v2",
+            manager_id=alice_id, agent_ids=[alice_id, bob_id, charlie_id],
+            parent_id=None, dept_id=first.id,
+        )
+        assert updated.id == first.id
+        assert updated.manager_id == alice_id
+
+    # ------------------------------------------------------------------
+    # 情况2: DEPT_MANAGER_CONFLICT
+    # 规则：被跨部门移走的成员，不能是其原部门的 leader
+    # ------------------------------------------------------------------
+
+    async def test_upsert_dept_raises_when_moving_away_dept_leader(self):
+        """平级部门：alice 是 dept_a 的 leader，不能作为普通成员加入 dept_b。"""
+        await self._reset_tables()
+
+        team = await self._setup_team_with_agents(
+            "t_upsert_leader_conflict", ["alice", "bob", "charlie"]
+        )
+        alice_id = await self._get_agent_id(team.id, "alice")
+        bob_id = await self._get_agent_id(team.id, "bob")
+        charlie_id = await self._get_agent_id(team.id, "charlie")
+
+        await deptService.upsert_dept(
+            team_id=team.id, name="dept_a", responsibility="",
+            manager_id=alice_id, agent_ids=[alice_id, bob_id], parent_id=None,
+        )
+
+        with pytest.raises(TogoException) as exc_info:
+            await deptService.upsert_dept(
+                team_id=team.id, name="dept_b", responsibility="",
+                manager_id=charlie_id, agent_ids=[charlie_id, alice_id], parent_id=None,
+            )
+        assert exc_info.value.error_code == "DEPT_MANAGER_CONFLICT"
+
+    async def test_upsert_dept_raises_when_dept_leader_added_to_child_dept(self):
+        """父子层级：alice 是 dept_a 的 leader，不能作为普通成员加入 dept_a 的子部门。"""
+        await self._reset_tables()
+
+        team = await self._setup_team_with_agents(
+            "t_upsert_leader_child_conflict", ["alice", "bob", "charlie"]
+        )
+        alice_id = await self._get_agent_id(team.id, "alice")
+        bob_id = await self._get_agent_id(team.id, "bob")
+        charlie_id = await self._get_agent_id(team.id, "charlie")
+
+        parent = await deptService.upsert_dept(
+            team_id=team.id, name="dept_a", responsibility="",
+            manager_id=alice_id, agent_ids=[alice_id, bob_id], parent_id=None,
+        )
+
+        # alice 是 dept_a 的 leader，不能作为普通成员加入子部门
+        with pytest.raises(TogoException) as exc_info:
+            await deptService.upsert_dept(
+                team_id=team.id, name="dept_a_child", responsibility="",
+                manager_id=charlie_id, agent_ids=[charlie_id, alice_id], parent_id=parent.id,
+            )
+        assert exc_info.value.error_code == "DEPT_MANAGER_CONFLICT"
+
+    async def test_upsert_dept_child_manager_stays_in_parent_no_conflict(self):
+        """子部门 manager 保留在父部门（例外路径），不应触发 DEPT_MANAGER_CONFLICT。"""
+        await self._reset_tables()
+
+        team = await self._setup_team_with_agents(
+            "t_upsert_mgr_no_conflict", ["cto", "eng_lead", "dev_a"]
+        )
+        cto_id = await self._get_agent_id(team.id, "cto")
+        eng_lead_id = await self._get_agent_id(team.id, "eng_lead")
+        dev_a_id = await self._get_agent_id(team.id, "dev_a")
+
+        parent = await deptService.upsert_dept(
+            team_id=team.id, name="company", responsibility="",
+            manager_id=cto_id, agent_ids=[cto_id, eng_lead_id], parent_id=None,
+        )
+
+        # eng_lead 作为子部门 leader，按例外规则保留在父部门，不报错
+        await deptService.upsert_dept(
+            team_id=team.id, name="engineering", responsibility="",
+            manager_id=eng_lead_id, agent_ids=[eng_lead_id, dev_a_id], parent_id=parent.id,
+        )
+
+        refreshed_parent = await gtDeptManager.get_dept_by_name(team.id, "company")
+        assert refreshed_parent is not None
+        assert eng_lead_id in refreshed_parent.agent_ids

@@ -117,7 +117,17 @@ async def upsert_dept(
     dept_map: dict[int, GtDept] = {d.id: d for d in all_depts if d.id is not None}
     members_set = set(agent_ids)
 
-    # 计算需要更新的其他部门
+    # 指定的 leader 不能已经是其他部门的 leader
+    for dept in all_depts:
+        if dept.id == dept_id:
+            continue
+        if dept.manager_id == manager_id:
+            raise TogoException(
+                f"成员 ID '{manager_id}' 已是部门 '{dept.name}' 的负责人，一个成员只能担任一个部门的负责人",
+                error_code="DEPT_MANAGER_ALREADY_LEADS",
+            )
+
+    # 计算需要更新的其他部门，并检测被移走的成员是否是原部门 leader
     depts_to_update: dict[int, list[int]] = {}
     for dept in all_depts:
         if dept.id == dept_id:
@@ -130,6 +140,12 @@ async def upsert_dept(
                 if aid == manager_id and dept.id == parent_id:
                     new_ids.append(aid)
                 else:
+                    # 被移走的成员若是该部门 leader，阻止操作
+                    if aid == dept.manager_id:
+                        raise TogoException(
+                            f"成员 ID '{aid}' 是部门 '{dept.name}' 的负责人，无法将其移入新部门，请先更换 '{dept.name}' 的负责人",
+                            error_code="DEPT_MANAGER_CONFLICT",
+                        )
                     changed = True
             else:
                 new_ids.append(aid)
