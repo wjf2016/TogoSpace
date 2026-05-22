@@ -200,6 +200,81 @@ async def get_room_info(room_name: Optional[str] = None, _context: ToolCallConte
     return {"success": True, "room": room_dict}
 
 
+async def start_chat(
+    agent_name: str,
+    initial_topic: str = "",
+    _context: ToolCallContext = None,
+) -> dict:
+    """与指定 Agent 发起单聊（私聊）。若两人之间已有房间则直接返回，不重复创建。
+
+    Args:
+        agent_name: 要发起对话的目标 Agent 名称。
+        initial_topic: 对话初始话题，可选。
+    """
+    ok, team_id = _require_team_context(_context)
+    if not ok:
+        return {"success": False, "message": "当前没有可用的团队上下文。"}
+
+    if _context is None or not _context.agent_id:
+        return {"success": False, "message": "无法获取当前 Agent 身份。"}
+
+    normalized = agent_name.strip()
+    if not normalized:
+        return {"success": False, "message": "目标 Agent 名称不能为空。"}
+
+    all_agents = await gtAgentManager.get_team_all_agents(team_id)
+    name_to_agent: dict[str, Any] = {a.name: a for a in all_agents}
+    id_to_name: dict[int, str] = {a.id: a.name for a in all_agents}
+
+    target = name_to_agent.get(normalized)
+    if target is None:
+        return {"success": False, "message": f"未找到成员: {normalized}"}
+
+    self_id = _context.agent_id
+    if target.id == self_id:
+        return {"success": False, "message": "不能与自己发起单聊。"}
+
+    member_ids = [self_id, target.id]
+    member_set = set(member_ids)
+
+    # 若已存在成员相同的房间，直接返回
+    existing_rooms = await gtRoomManager.get_rooms_by_team(team_id)
+    for existing_room in existing_rooms:
+        if set(existing_room.agent_ids or []) == member_set:
+            return {
+                "success": True,
+                "message": f"已存在与 {normalized} 的单聊房间 {existing_room.name}，无需重复创建。",
+                "room": {
+                    "room_id": existing_room.id,
+                    "name": existing_room.name,
+                    "members": [id_to_name.get(aid, str(aid)) for aid in (existing_room.agent_ids or [])],
+                },
+                "is_new_created": False,
+            }
+
+    # 按名称字母序生成房间名，保证唯一且可预测
+    self_name = id_to_name.get(self_id, str(self_id))
+    room_name = "_".join(sorted([self_name, normalized]))
+
+    saved = await roomService.upsert_room(
+        team_id=team_id,
+        name=room_name,
+        agent_ids=member_ids,
+        initial_topic=initial_topic,
+    )
+
+    return {
+        "success": True,
+        "message": f"已创建与 {normalized} 的单聊房间 {saved.name}。配置已保存，需要 reload_team 后生效。",
+        "room": {
+            "room_id": saved.id,
+            "name": saved.name,
+            "members": [id_to_name.get(aid, str(aid)) for aid in (saved.agent_ids or [])],
+        },
+        "is_new_created": True,
+    }
+
+
 async def get_agent_info(agent_name: Optional[str] = None, _context: ToolCallContext = None) -> dict:
     """查询 Agent 信息。不传 agent_name 时返回团队成员列表，传入时返回指定成员详情。
 
