@@ -7,7 +7,7 @@ import pytest
 from constants import AgentHistoryStatus, AgentHistoryTag, DriverType, OpenaiApiRole, RoomState, TurnStepResult
 from model.dbModel.gtAgentHistory import GtAgentHistory
 from model.dbModel.gtAgent import GtAgent
-from model.dbModel.gtAgentTask import GtAgentTask
+from model.dbModel.gtScheculeTask import GtScheculeTask
 from model.dbModel.gtRoomMessage import GtRoomMessage
 from service.agentService.agentTurnRunner import AgentTurnRunner
 from service.agentService.toolRegistry import ToolExecutionResult
@@ -44,7 +44,7 @@ from util.assertUtil import MakeSureException
 
 @pytest.mark.asyncio
 async def test_run_chat_turn_raises_when_room_id_missing(turn_runner):
-    task = MagicMock(spec=GtAgentTask)
+    task = MagicMock(spec=GtScheculeTask)
     task.id = 100
     task.task_data = {}  # 无 room_id
 
@@ -54,7 +54,7 @@ async def test_run_chat_turn_raises_when_room_id_missing(turn_runner):
 
 @pytest.mark.asyncio
 async def test_run_chat_turn_raises_when_room_not_found(turn_runner):
-    task = MagicMock(spec=GtAgentTask)
+    task = MagicMock(spec=GtScheculeTask)
     task.id = 100
     task.task_data = {"room_id": 999}
 

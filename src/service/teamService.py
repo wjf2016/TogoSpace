@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from dal.db import gtTeamManager, gtAgentManager, gtAgentTaskManager, gtAgentHistoryManager, gtRoomMessageManager, gtRoomManager
+from dal.db import gtTeamManager, gtAgentManager, gtScheculeTaskManager, gtAgentHistoryManager, gtRoomMessageManager, gtRoomManager
 from exception import TogoException
 from model.dbModel.gtAgent import GtAgent
 from model.dbModel.gtDept import GtDept
@@ -201,7 +201,7 @@ async def clear_team_data(team_id: int) -> dict[str, int]:
     await stop_team_runtime(team_id)
 
     # 2. 清空数据库（按依赖顺序）
-    tasks_deleted = await gtAgentTaskManager.delete_tasks_by_team(team_id)
+    tasks_deleted = await gtScheculeTaskManager.delete_tasks_by_team(team_id)
     histories_deleted = await gtAgentHistoryManager.delete_history_by_team(team_id)
     messages_deleted = await gtRoomMessageManager.delete_messages_by_team(team_id)
 

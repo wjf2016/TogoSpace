@@ -8,7 +8,7 @@
 
 ## 2. 命名说明
 
-项目中已存在 `GtAgentTask`（表 `agent_tasks`），用于调度系统的内部任务队列，与本 feature 无关。本版本新增的协作任务模型命名为 **`GtTask`**（表 `tasks`），两者职责不同，名称区分。
+项目中已存在 `GtScheculeTask`（表 `agent_tasks`），用于调度系统的内部任务队列，与本 feature 无关。本版本新增的协作任务模型命名为 **`GtTask`**（表 `tasks`），两者职责不同，名称区分。
 
 ---
 
@@ -216,7 +216,7 @@ async def list_tasks(
 
 新增 `tasks` 表的迁移脚本，与项目现有迁移机制保持一致。
 
-`GtTask` 需在数据库初始化时注册到 `model_list`（与 `GtAgentTask` 并列，不冲突）。
+`GtTask` 需在数据库初始化时注册到 `model_list`（与 `GtScheculeTask` 并列，不冲突）。
 
 ---
 

@@ -6,7 +6,7 @@ from typing import Any, Protocol
 
 from constants import DriverType
 from model.dbModel.gtAgent import GtAgent
-from model.dbModel.gtAgentTask import GtAgentTask
+from model.dbModel.gtScheculeTask import GtScheculeTask
 from service.agentService.agentHistoryStore import AgentHistoryStore
 from service.agentService.toolRegistry import AgentToolRegistry
 
@@ -80,7 +80,7 @@ class AgentDriver:
     def turn_setup(self) -> AgentTurnSetup:
         return AgentTurnSetup()
 
-    async def run_chat_turn(self, task: GtAgentTask, synced_count: int) -> None:
+    async def run_chat_turn(self, task: GtScheculeTask, synced_count: int) -> None:
         raise NotImplementedError
 
     async def cancel_turn(self) -> None:

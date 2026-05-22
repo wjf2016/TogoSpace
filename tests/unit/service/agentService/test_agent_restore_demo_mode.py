@@ -21,7 +21,7 @@ async def test_restore_agent_runtime_state_skips_fail_running_tasks_in_demo_read
     monkeypatch.setattr(agent_core.persistenceService, "load_agent_history_message", AsyncMock(return_value=histories))
     monkeypatch.setattr(agent_core.persistenceService, "fail_running_tasks", fail_running_tasks)
     monkeypatch.setattr(agent_core.agentActivityService, "fail_started_activities", fail_started_activities)
-    monkeypatch.setattr(agent_core.gtAgentTaskManager, "get_first_unfinish_task", AsyncMock(return_value=None))
+    monkeypatch.setattr(agent_core.gtScheculeTaskManager, "get_first_unfinish_task", AsyncMock(return_value=None))
     monkeypatch.setattr(
         agent_core.configUtil,
         "get_app_config",
@@ -53,7 +53,7 @@ async def test_restore_agent_runtime_state_still_marks_failed_when_not_demo(monk
     monkeypatch.setattr(agent_core.persistenceService, "load_agent_history_message", AsyncMock(return_value=[]))
     monkeypatch.setattr(agent_core.persistenceService, "fail_running_tasks", fail_running_tasks)
     monkeypatch.setattr(agent_core.agentActivityService, "fail_started_activities", fail_started_activities)
-    monkeypatch.setattr(agent_core.gtAgentTaskManager, "get_first_unfinish_task", AsyncMock(return_value=failed_task))
+    monkeypatch.setattr(agent_core.gtScheculeTaskManager, "get_first_unfinish_task", AsyncMock(return_value=failed_task))
     monkeypatch.setattr(
         agent_core.configUtil,
         "get_app_config",

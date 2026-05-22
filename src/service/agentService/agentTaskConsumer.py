@@ -6,8 +6,8 @@ import logging
 
 from constants import AgentTaskStatus, AgentStatus, AgentActivityType, AgentActivityStatus, MessageBusTopic
 from model.dbModel.gtAgent import GtAgent
-from model.dbModel.gtAgentTask import GtAgentTask
-from dal.db import gtAgentTaskManager
+from model.dbModel.gtScheculeTask import GtScheculeTask
+from dal.db import gtScheculeTaskManager
 from service import messageBus, agentActivityService
 from service.agentService.agentTurnRunner import AgentTurnRunner
 from service.agentService.driver import AgentDriverConfig
@@ -98,7 +98,7 @@ class AgentTaskConsumer:
 
         while True:
             await self._set_status(AgentStatus.ACTIVE)
-            task = await gtAgentTaskManager.get_first_unfinish_task(self.gt_agent.id)
+            task = await gtScheculeTaskManager.get_first_unfinish_task(self.gt_agent.id)
 
             logger.info(f"检查待处理任务: {self.gt_agent.name}(agent_id={self.gt_agent.id})")
 
@@ -111,7 +111,7 @@ class AgentTaskConsumer:
                 break
 
             if task.status in (AgentTaskStatus.PENDING, AgentTaskStatus.FAILED):
-                claimed_task = await gtAgentTaskManager.transition_task_status(task.id, task.status, AgentTaskStatus.RUNNING)
+                claimed_task = await gtScheculeTaskManager.transition_task_status(task.id, task.status, AgentTaskStatus.RUNNING)
                 if claimed_task is None:
                     logger.debug(f"任务认领失败（已被其他消费者抢占），重试: {self.gt_agent.name}(agent_id={self.gt_agent.id}), task_id={task.id}")
                     continue
@@ -130,7 +130,7 @@ class AgentTaskConsumer:
                 self._cancel_requested = False
                 logger.info(f"Agent 任务被人工停止: {self.gt_agent.name}(agent_id={self.gt_agent.id}), task_id={claimed_task.id}")
                 await self._turn_runner.handle_cancel_turn()
-                await gtAgentTaskManager.update_task_status(claimed_task.id, AgentTaskStatus.CANCELLED, error_message="cancelled by user")
+                await gtScheculeTaskManager.update_task_status(claimed_task.id, AgentTaskStatus.CANCELLED, error_message="cancelled by user")
                 await agentActivityService.add_activity(
                     gt_agent=self.gt_agent, activity_type=AgentActivityType.AGENT_STATE,
                     status=AgentActivityStatus.CANCELLED, detail="Turn 被操作者停止",
@@ -138,12 +138,12 @@ class AgentTaskConsumer:
                 break
             except Exception as e:
                 logger.error(f"Agent 任务执行失败: {self.gt_agent.name}(agent_id={self.gt_agent.id}), task_id={claimed_task.id}, error={e}")
-                await gtAgentTaskManager.update_task_status(claimed_task.id, AgentTaskStatus.FAILED, error_message=str(e))
+                await gtScheculeTaskManager.update_task_status(claimed_task.id, AgentTaskStatus.FAILED, error_message=str(e))
                 await self._set_status(AgentStatus.FAILED, str(e))
                 break
 
             logger.info(f"任务执行完成: {self.gt_agent.name}(agent_id={self.gt_agent.id}), task_id={claimed_task.id}")
-            await gtAgentTaskManager.update_task_status(claimed_task.id, AgentTaskStatus.COMPLETED)
+            await gtScheculeTaskManager.update_task_status(claimed_task.id, AgentTaskStatus.COMPLETED)
 
         # 清理逻辑
         if self.status != AgentStatus.FAILED:
@@ -153,7 +153,7 @@ class AgentTaskConsumer:
         if self._aio_consumer_task is current_consumer:
             self._aio_consumer_task = None
             if self.status != AgentStatus.FAILED:
-                has_pending = await gtAgentTaskManager.has_consumable_task(self.gt_agent.id)
+                has_pending = await gtScheculeTaskManager.has_consumable_task(self.gt_agent.id)
                 if has_pending:
                     logger.info(f"Agent 任务收尾时检测到待处理任务，自动续起消费: {self.gt_agent.name}(agent_id={self.gt_agent.id})")
                     self.start()

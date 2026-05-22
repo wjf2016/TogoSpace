@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 from constants import DriverType, AgentStatus, AgentTaskStatus, SpecialAgent
 from controller.baseController import BaseHandler
-from dal.db import gtTeamManager, gtAgentManager, gtRoleTemplateManager, gtAgentTaskManager
+from dal.db import gtTeamManager, gtAgentManager, gtRoleTemplateManager, gtScheculeTaskManager
 from service.agentService.toolRegistry import validate_tool_allow_specs
 from model.dbModel.gtAgent import GtAgent
 from service import teamService, agentService
@@ -29,7 +29,7 @@ class AgentsSaveRequest(BaseModel):
 
 async def _build_agent_detail_payload(agent: GtAgent) -> dict:
     runtime_status_map = agentService.get_team_runtime_status_map(agent.team_id)
-    first_task = await gtAgentTaskManager.get_first_unfinish_task(agent.id)
+    first_task = await gtScheculeTaskManager.get_first_unfinish_task(agent.id)
     current_error_message = None
     if first_task is not None and first_task.status == AgentTaskStatus.FAILED:
         current_error_message = first_task.error_message

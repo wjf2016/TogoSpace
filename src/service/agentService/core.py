@@ -11,7 +11,7 @@ from service.agentService.agent import Agent
 from service.agentService.driver import normalize_driver_config
 from service.agentService.promptBuilder import build_agent_system_prompt
 from service import llmService, roomService, persistenceService, deptService, agentActivityService
-from dal.db import gtTeamManager, gtAgentManager, gtRoleTemplateManager, gtAgentTaskManager
+from dal.db import gtTeamManager, gtAgentManager, gtRoleTemplateManager, gtScheculeTaskManager
 from peewee import IntegrityError
 from exception import TogoException
 from constants import AgentStatus, AgentTaskStatus, DriverType, EmployStatus, SpecialAgent
@@ -206,7 +206,7 @@ async def _restore_agent_runtime_state(
             error_message=running_task_error_message,
         )
 
-    first_task = await gtAgentTaskManager.get_first_unfinish_task(agent.gt_agent.id)
+    first_task = await gtScheculeTaskManager.get_first_unfinish_task(agent.gt_agent.id)
     agent.task_consumer.status = AgentStatus.FAILED if (
         first_task is not None and first_task.status == AgentTaskStatus.FAILED
     ) else AgentStatus.IDLE

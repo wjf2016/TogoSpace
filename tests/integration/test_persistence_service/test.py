@@ -5,10 +5,10 @@ from pathlib import Path
 import pytest
 
 from constants import AgentStatus, AgentTaskStatus, AgentTaskType
-from dal.db import gtTeamManager, gtAgentManager, gtAgentHistoryManager, gtAgentTaskManager
+from dal.db import gtTeamManager, gtAgentManager, gtAgentHistoryManager, gtScheculeTaskManager
 from model.dbModel.gtAgent import GtAgent
 from model.dbModel.gtAgentHistory import GtAgentHistory
-from model.dbModel.gtAgentTask import GtAgentTask
+from model.dbModel.gtScheculeTask import GtScheculeTask
 from model.dbModel.gtDept import GtDept
 from model.dbModel.gtTeam import GtTeam
 from service import presetService, agentService, ormService, persistenceService, roomService, messageBus, deptService
@@ -170,12 +170,12 @@ class TestRestoreAgentHistory(ServiceTestCase):
                 message=OpenAIMessage.text(OpenaiApiRole.ASSISTANT, "a1"),
             )
         )
-        running_task = await gtAgentTaskManager.create_task(
+        running_task = await gtScheculeTaskManager.create_task(
             gt_alice.id,
             AgentTaskType.ROOM_MESSAGE,
             {"room_id": 1},
         )
-        await gtAgentTaskManager.update_task_status(running_task.id, AgentTaskStatus.RUNNING)
+        await gtScheculeTaskManager.update_task_status(running_task.id, AgentTaskStatus.RUNNING)
         cls.running_task_id = running_task.id
 
         # 模拟进程重启
@@ -204,7 +204,7 @@ class TestRestoreAgentHistory(ServiceTestCase):
 
     async def test_running_task_marked_failed_after_restore(self):
         assert self.running_task_id is not None
-        task = await GtAgentTask.aio_get_or_none(GtAgentTask.id == self.running_task_id)
+        task = await GtScheculeTask.aio_get_or_none(GtScheculeTask.id == self.running_task_id)
         assert task is not None
         assert task.status == AgentTaskStatus.FAILED
         assert task.error_message == "task interrupted by process restart"

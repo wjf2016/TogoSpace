@@ -19,7 +19,7 @@ from model.coreModel.gtCoreChatModel import GtCoreAgentDialogContext
 from model.dbModel.gtRoomMessage import GtRoomMessage
 from model.dbModel.gtAgent import GtAgent
 from model.dbModel.gtAgentHistory import GtAgentHistory
-from model.dbModel.gtAgentTask import GtAgentTask
+from model.dbModel.gtScheculeTask import GtScheculeTask
 from model.dbModel.historyUsage import CompactStage, HistoryUsage
 from service import agentActivityService, llmService, roomService
 from service.agentActivityService import AgentActivityMeta
@@ -127,7 +127,7 @@ class AgentTurnRunner:
         await self._history.finalize_cancel_turn()
         await agentActivityService.fail_started_activities(self.gt_agent.id, error_message="cancelled by user")
 
-    async def run_chat_turn(self, task: GtAgentTask) -> None:
+    async def run_chat_turn(self, task: GtScheculeTask) -> None:
         """执行一个完整 chat turn：同步房间消息 → 推理 → 工具调用循环。
         若存在未完成 turn，则走续跑路径。"""
         room_id = task.task_data.get("room_id")

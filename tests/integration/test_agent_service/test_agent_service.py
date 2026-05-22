@@ -7,10 +7,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from constants import AgentHistoryTag, DriverType, EmployStatus, MessageBusTopic, AgentStatus, AgentTaskStatus, AgentTaskType, SpecialAgent
-from dal.db import gtAgentManager, gtTeamManager, gtAgentTaskManager
+from dal.db import gtAgentManager, gtTeamManager, gtScheculeTaskManager
 from model.dbModel.gtAgent import GtAgent
 from model.dbModel.gtAgentHistory import GtAgentHistory
-from model.dbModel.gtAgentTask import GtAgentTask
+from model.dbModel.gtScheculeTask import GtScheculeTask
 from service import presetService, agentService, roomService, ormService, persistenceService, messageBus, teamService
 from service.agentService import promptBuilder
 from util import configUtil, llmApiUtil
@@ -300,12 +300,12 @@ class TestAgentStatus(_agentServiceCase):
         room = roomService.get_room_by_key(f"resume_room@{TEAM}")
         alice = agentService.get_agent(agentService.get_agent_id_by_stable_name(room.team_id, "alice"))
 
-        failed_task = await gtAgentTaskManager.create_task(
+        failed_task = await gtScheculeTaskManager.create_task(
             alice.gt_agent.id,
             AgentTaskType.ROOM_MESSAGE,
             {"room_id": room.room_id},
         )
-        await gtAgentTaskManager.update_task_status(
+        await gtScheculeTaskManager.update_task_status(
             failed_task.id,
             AgentTaskStatus.FAILED,
             error_message="boom",

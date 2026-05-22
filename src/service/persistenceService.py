@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import asyncio
 
-from dal.db import gtAgentHistoryManager, gtAgentTaskManager, gtRoomMessageManager, gtRoomManager
+from dal.db import gtAgentHistoryManager, gtScheculeTaskManager, gtRoomMessageManager, gtRoomManager
 from model.dbModel.gtAgentHistory import GtAgentHistory
 from model.dbModel.gtRoomMessage import GtRoomMessage
 from constants import AgentHistoryTag, AgentTaskStatus
@@ -48,9 +48,9 @@ async def fail_running_tasks(
     error_message: str = "task interrupted by process restart",
 ) -> None:
     """将 Agent 的 RUNNING 任务标记为 FAILED。"""
-    tasks = await gtAgentTaskManager.get_running_tasks(agent_id)
+    tasks = await gtScheculeTaskManager.get_running_tasks(agent_id)
     for task in tasks:
-        await gtAgentTaskManager.update_task_status(
+        await gtScheculeTaskManager.update_task_status(
             task.id,
             AgentTaskStatus.FAILED,
             error_message=error_message,

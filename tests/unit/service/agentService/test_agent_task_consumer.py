@@ -6,7 +6,7 @@ import pytest
 
 from constants import AgentActivityStatus, AgentActivityType, AgentStatus, AgentTaskStatus
 from model.dbModel.gtAgent import GtAgent
-from model.dbModel.gtAgentTask import GtAgentTask
+from model.dbModel.gtScheculeTask import GtScheculeTask
 from service.agentService.agentTaskConsumer import AgentTaskConsumer
 
 @pytest.fixture
@@ -35,7 +35,7 @@ def consumer(mock_gt_agent, mock_turn_runner):
 
 @pytest.mark.asyncio
 async def test_consume_no_task_returns_early(consumer, mock_gt_agent, mock_turn_runner):
-    with patch("service.agentService.agentTaskConsumer.gtAgentTaskManager") as mock_manager:
+    with patch("service.agentService.agentTaskConsumer.gtScheculeTaskManager") as mock_manager:
         mock_manager.get_first_unfinish_task = AsyncMock(return_value=None)
         mock_manager.has_consumable_task = AsyncMock(return_value=False)
 
@@ -47,17 +47,17 @@ async def test_consume_no_task_returns_early(consumer, mock_gt_agent, mock_turn_
 
 @pytest.mark.asyncio
 async def test_consume_processes_pending_task(consumer, mock_gt_agent, mock_turn_runner):
-    pending_task = MagicMock(spec=GtAgentTask)
+    pending_task = MagicMock(spec=GtScheculeTask)
     pending_task.id = 100
     pending_task.status = AgentTaskStatus.PENDING
     pending_task.task_data = {"room_id": 1}
 
-    running_task = MagicMock(spec=GtAgentTask)
+    running_task = MagicMock(spec=GtScheculeTask)
     running_task.id = 100
     running_task.status = AgentTaskStatus.RUNNING
     running_task.task_data = {"room_id": 1}
 
-    with patch("service.agentService.agentTaskConsumer.gtAgentTaskManager") as mock_manager:
+    with patch("service.agentService.agentTaskConsumer.gtScheculeTaskManager") as mock_manager:
         mock_manager.get_first_unfinish_task = AsyncMock(side_effect=[pending_task, None])
         mock_manager.transition_task_status = AsyncMock(return_value=running_task)
         mock_manager.update_task_status = AsyncMock()
@@ -72,17 +72,17 @@ async def test_consume_processes_pending_task(consumer, mock_gt_agent, mock_turn
 
 @pytest.mark.asyncio
 async def test_consume_stops_on_failed_task(consumer, mock_gt_agent, mock_turn_runner):
-    pending_task = MagicMock(spec=GtAgentTask)
+    pending_task = MagicMock(spec=GtScheculeTask)
     pending_task.id = 100
     pending_task.status = AgentTaskStatus.PENDING
     pending_task.task_data = {"room_id": 1}
 
-    running_task = MagicMock(spec=GtAgentTask)
+    running_task = MagicMock(spec=GtScheculeTask)
     running_task.id = 100
     running_task.status = AgentTaskStatus.RUNNING
     running_task.task_data = {"room_id": 1}
 
-    with patch("service.agentService.agentTaskConsumer.gtAgentTaskManager") as mock_manager:
+    with patch("service.agentService.agentTaskConsumer.gtScheculeTaskManager") as mock_manager:
             mock_manager.get_first_unfinish_task = AsyncMock(return_value=pending_task)
             mock_manager.transition_task_status = AsyncMock(return_value=running_task)
             mock_manager.update_task_status = AsyncMock()
@@ -105,12 +105,12 @@ async def test_consume_stops_on_failed_task(consumer, mock_gt_agent, mock_turn_r
 
 @pytest.mark.asyncio
 async def test_consume_running_task_retries_and_keeps_failed_status_on_error(consumer, mock_gt_agent, mock_turn_runner):
-    running_task = MagicMock(spec=GtAgentTask)
+    running_task = MagicMock(spec=GtScheculeTask)
     running_task.id = 101
     running_task.status = AgentTaskStatus.RUNNING
     running_task.task_data = {"room_id": 42}
 
-    with patch("service.agentService.agentTaskConsumer.gtAgentTaskManager") as mock_manager:
+    with patch("service.agentService.agentTaskConsumer.gtScheculeTaskManager") as mock_manager:
         mock_manager.get_first_unfinish_task = AsyncMock(return_value=running_task)
         mock_manager.update_task_status = AsyncMock()
 
@@ -134,18 +134,18 @@ async def test_consume_running_task_retries_and_keeps_failed_status_on_error(con
 @pytest.mark.asyncio
 async def test_consume_retries_failed_task(consumer, mock_gt_agent, mock_turn_runner):
     """FAILED 任务应被自动重跑，而不是停止消费。"""
-    failed_task = MagicMock(spec=GtAgentTask)
+    failed_task = MagicMock(spec=GtScheculeTask)
     failed_task.id = 100
     failed_task.status = AgentTaskStatus.FAILED
     failed_task.task_data = {"room_id": 1}
     failed_task.error_message = "previous error"
 
-    running_task = MagicMock(spec=GtAgentTask)
+    running_task = MagicMock(spec=GtScheculeTask)
     running_task.id = 100
     running_task.status = AgentTaskStatus.RUNNING
     running_task.task_data = {"room_id": 1}
 
-    with patch("service.agentService.agentTaskConsumer.gtAgentTaskManager") as mock_manager:
+    with patch("service.agentService.agentTaskConsumer.gtScheculeTaskManager") as mock_manager:
         mock_manager.get_first_unfinish_task = AsyncMock(side_effect=[failed_task, None])
         mock_manager.transition_task_status = AsyncMock(return_value=running_task)
         mock_manager.update_task_status = AsyncMock()
@@ -161,19 +161,19 @@ async def test_consume_retries_failed_task(consumer, mock_gt_agent, mock_turn_ru
 @pytest.mark.asyncio
 async def test_consume_retries_failed_task_regardless_of_current_status(consumer, mock_turn_runner):
     """无论 consumer 当前状态如何，FAILED 任务都应被重跑。"""
-    failed_task = MagicMock(spec=GtAgentTask)
+    failed_task = MagicMock(spec=GtScheculeTask)
     failed_task.id = 100
     failed_task.status = AgentTaskStatus.FAILED
     failed_task.task_data = {"room_id": 1}
     failed_task.error_message = "previous error"
     consumer.status = AgentStatus.FAILED
 
-    running_task = MagicMock(spec=GtAgentTask)
+    running_task = MagicMock(spec=GtScheculeTask)
     running_task.id = 100
     running_task.status = AgentTaskStatus.RUNNING
     running_task.task_data = {"room_id": 1}
 
-    with patch("service.agentService.agentTaskConsumer.gtAgentTaskManager") as mock_manager:
+    with patch("service.agentService.agentTaskConsumer.gtScheculeTaskManager") as mock_manager:
         mock_manager.get_first_unfinish_task = AsyncMock(side_effect=[failed_task, None])
         mock_manager.transition_task_status = AsyncMock(return_value=running_task)
         mock_manager.update_task_status = AsyncMock()
@@ -188,12 +188,12 @@ async def test_consume_retries_failed_task_regardless_of_current_status(consumer
 
 @pytest.mark.asyncio
 async def test_consume_auto_continues_when_pending_after_completion(consumer, mock_turn_runner):
-    pending_task = MagicMock(spec=GtAgentTask)
+    pending_task = MagicMock(spec=GtScheculeTask)
     pending_task.id = 100
     pending_task.status = AgentTaskStatus.PENDING
     pending_task.task_data = {"room_id": 1}
 
-    running_task = MagicMock(spec=GtAgentTask)
+    running_task = MagicMock(spec=GtScheculeTask)
     running_task.id = 100
     running_task.status = AgentTaskStatus.RUNNING
     running_task.task_data = {"room_id": 1}
@@ -202,7 +202,7 @@ async def test_consume_auto_continues_when_pending_after_completion(consumer, mo
     mock_task = MagicMock()
     consumer._aio_consumer_task = mock_task
 
-    with patch("service.agentService.agentTaskConsumer.gtAgentTaskManager") as mock_manager:
+    with patch("service.agentService.agentTaskConsumer.gtScheculeTaskManager") as mock_manager:
         with patch("asyncio.current_task", return_value=mock_task):
             mock_manager.get_first_unfinish_task = AsyncMock(side_effect=[pending_task, None])
             mock_manager.transition_task_status = AsyncMock(return_value=running_task)
@@ -260,11 +260,11 @@ def test_cancel_current_turn_sets_flag_and_cancels_task(consumer):
 @pytest.mark.asyncio
 async def test_consume_handles_cancel_request(consumer, mock_gt_agent, mock_turn_runner):
     """人工取消：CancelledError + _cancel_requested=True → 执行 cancel 收尾逻辑。"""
-    pending_task = MagicMock(spec=GtAgentTask)
+    pending_task = MagicMock(spec=GtScheculeTask)
     pending_task.id = 200
     pending_task.status = AgentTaskStatus.PENDING
 
-    running_task = MagicMock(spec=GtAgentTask)
+    running_task = MagicMock(spec=GtScheculeTask)
     running_task.id = 200
     running_task.status = AgentTaskStatus.RUNNING
 
@@ -276,7 +276,7 @@ async def test_consume_handles_cancel_request(consumer, mock_gt_agent, mock_turn
     mock_turn_runner.run_chat_turn = AsyncMock(side_effect=_simulate_cancel)
     mock_turn_runner.handle_cancel_turn = AsyncMock()
 
-    with patch("service.agentService.agentTaskConsumer.gtAgentTaskManager") as mock_manager:
+    with patch("service.agentService.agentTaskConsumer.gtScheculeTaskManager") as mock_manager:
         mock_manager.get_first_unfinish_task = AsyncMock(return_value=pending_task)
         mock_manager.transition_task_status = AsyncMock(return_value=running_task)
         mock_manager.update_task_status = AsyncMock()
@@ -303,18 +303,18 @@ async def test_consume_handles_cancel_request(consumer, mock_gt_agent, mock_turn
 @pytest.mark.asyncio
 async def test_consume_reraises_cancelled_error_when_not_human_stop(consumer, mock_gt_agent, mock_turn_runner):
     """非人工取消的 CancelledError（如 hot reload）应原样 re-raise。"""
-    pending_task = MagicMock(spec=GtAgentTask)
+    pending_task = MagicMock(spec=GtScheculeTask)
     pending_task.id = 300
     pending_task.status = AgentTaskStatus.PENDING
 
-    running_task = MagicMock(spec=GtAgentTask)
+    running_task = MagicMock(spec=GtScheculeTask)
     running_task.id = 300
     running_task.status = AgentTaskStatus.RUNNING
 
     mock_turn_runner.run_chat_turn = AsyncMock(side_effect=asyncio.CancelledError)
     mock_turn_runner.handle_cancel_turn = AsyncMock()
 
-    with patch("service.agentService.agentTaskConsumer.gtAgentTaskManager") as mock_manager:
+    with patch("service.agentService.agentTaskConsumer.gtScheculeTaskManager") as mock_manager:
         mock_manager.get_first_unfinish_task = AsyncMock(return_value=pending_task)
         mock_manager.transition_task_status = AsyncMock(return_value=running_task)
         mock_manager.update_task_status = AsyncMock()
@@ -336,7 +336,7 @@ async def test_consume_resets_cancel_flag_at_entry(consumer, mock_turn_runner):
     """consume() 入口应防御性重置 _cancel_requested。"""
     consumer._cancel_requested = True  # 残留的脏状态
 
-    with patch("service.agentService.agentTaskConsumer.gtAgentTaskManager") as mock_manager:
+    with patch("service.agentService.agentTaskConsumer.gtScheculeTaskManager") as mock_manager:
         mock_manager.get_first_unfinish_task = AsyncMock(return_value=None)
         mock_manager.has_consumable_task = AsyncMock(return_value=False)
 

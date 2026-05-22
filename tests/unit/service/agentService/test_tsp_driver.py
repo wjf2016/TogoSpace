@@ -13,7 +13,7 @@ from pytspclient import TSPClient, TSPException
 from constants import ToolCategory
 from model.dbModel.gtAgent import GtAgent
 from model.dbModel.gtAgentHistory import GtAgentHistory
-from model.dbModel.gtAgentTask import GtAgentTask
+from model.dbModel.gtScheculeTask import GtScheculeTask
 from util import llmApiUtil
 from service.agentService.agentHistoryStore import AgentHistoryStore
 from service.agentService.driver.base import AgentDriverConfig
@@ -55,7 +55,7 @@ class _DummyHost:
     model: str = "mock-model"
     team_workdir: str = "/tmp"
     workspace_root: str = "/tmp/workspaces"
-    current_db_task: GtAgentTask | None = None
+    current_db_task: GtScheculeTask | None = None
     _history: AgentHistoryStore = field(default_factory=lambda: AgentHistoryStore(agent_id=1))
     tool_registry: AgentToolRegistry = field(default_factory=AgentToolRegistry)
 
@@ -290,7 +290,7 @@ async def test_tsp_driver_respects_local_tool_names(mock_tsp_host: MagicMock) ->
 async def test_tsp_driver_run_chat_turn_is_disabled(mock_tsp_host: MagicMock) -> None:
     config = AgentDriverConfig(driver_type="tsp", options={})
     driver = TspAgentDriver(mock_tsp_host, config)
-    task = MagicMock(spec=GtAgentTask)
+    task = MagicMock(spec=GtScheculeTask)
     with pytest.raises(RuntimeError, match="不再直接执行 run_chat_turn"):
         await driver.run_chat_turn(task=task, synced_count=0)
 

@@ -10,7 +10,7 @@ import pytest
 from dal.db import gtTeamManager
 from model.dbModel.gtAgent import GtAgent
 from model.dbModel.gtAgentHistory import GtAgentHistory
-from model.dbModel.gtAgentTask import GtAgentTask
+from model.dbModel.gtScheculeTask import GtScheculeTask
 from service import roomService, agentService, ormService, persistenceService
 from service import funcToolService, presetService
 from service.agentService import Agent
@@ -83,7 +83,7 @@ class TestSdkDoSend(ServiceTestCase):
         agent = agentService.get_agent(agentService.get_agent_id_by_stable_name(room.team_id, agent_name))
 
         # 3. 模拟 schedulerService：进入该房间回合前注入运行时的 current_db_task
-        task = GtAgentTask(
+        task = GtScheculeTask(
             id=1,
             agent_id=agent.gt_agent.id,
             task_type=AgentTaskType.ROOM_MESSAGE,
@@ -200,7 +200,7 @@ class TestClaudeSdkAgentDriver(ServiceTestCase):
             driver_config=AgentDriverConfig(driver_type="native"),
         )
         driver = ClaudeSdkAgentDriver(agent.task_consumer._turn_runner, AgentDriverConfig(driver_type="claude_sdk"))
-        task = GtAgentTask(
+        task = GtScheculeTask(
             id=1,
             agent_id=1,
             task_type=AgentTaskType.ROOM_MESSAGE,
@@ -319,7 +319,7 @@ class TestClaudeSdkAgentDriver(ServiceTestCase):
             system_prompt="test",
             driver_config=AgentDriverConfig(driver_type="native"),
         )
-        task = GtAgentTask(
+        task = GtScheculeTask(
             id=1,
             agent_id=1,
             task_type=AgentTaskType.ROOM_MESSAGE,
@@ -345,7 +345,7 @@ class TestClaudeSdkAgentDriver(ServiceTestCase):
             system_prompt="test",
             driver_config=AgentDriverConfig(driver_type="native"),
         )
-        task = GtAgentTask(
+        task = GtScheculeTask(
             id=1,
             agent_id=1,
             task_type=AgentTaskType.ROOM_MESSAGE,

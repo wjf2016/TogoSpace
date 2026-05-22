@@ -7,7 +7,7 @@ from constants import AgentTaskStatus, AgentTaskType
 from .base import DbModelBase, EnumField, JsonField
 
 
-class GtAgentTask(DbModelBase):
+class GtScheculeTask(DbModelBase):
     """Agent 任务记录。"""
     agent_id: int = peewee.IntegerField()
     task_type: AgentTaskType = EnumField(AgentTaskType, default=AgentTaskType.ROOM_MESSAGE)

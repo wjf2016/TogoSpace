@@ -14,7 +14,7 @@ from service.agentService.driver.base import AgentDriverConfig
 
 from service import funcToolService, roomService
 from service.agentService import toolRegistry
-from model.dbModel.gtAgentTask import GtAgentTask
+from model.dbModel.gtScheculeTask import GtScheculeTask
 from util import llmApiUtil
 
 from .base import AgentDriver, AgentTurnSetup
@@ -197,7 +197,7 @@ class TspAgentDriver(AgentDriver):
             hint_prompt_error_action=_RUN_CHAT_TURN_ERROR_ACTION_HINT,
         )
 
-    async def run_chat_turn(self, task: GtAgentTask, synced_count: int) -> None:
+    async def run_chat_turn(self, task: GtScheculeTask, synced_count: int) -> None:
         raise RuntimeError("TspAgentDriver 不再直接执行 run_chat_turn，请使用 Agent.run_chat_turn")
 
     async def _execute_tsp_tool(

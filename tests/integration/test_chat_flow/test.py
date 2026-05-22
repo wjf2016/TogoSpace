@@ -15,7 +15,7 @@ import service.ormService as ormService
 import service.persistenceService as persistenceService
 import service.presetService as presetService
 from model.dbModel.gtAgentHistory import GtAgentHistory
-from model.dbModel.gtAgentTask import GtAgentTask
+from model.dbModel.gtScheculeTask import GtScheculeTask
 from util import configUtil
 from util.llmApiUtil import OpenAIMessage, OpenAIToolCall
 from constants import AgentHistoryTag, AgentHistoryStatus, AgentStatus, AgentTaskType, OpenaiApiRole, RoomState, ScheduleState
@@ -118,7 +118,7 @@ class TestIntegrationMultiAgentChat(ServiceTestCase):
                 # 兜底返回 finish，避免并发调度时 side_effect 耗尽导致 StopIteration。
                 return self.normalize_to_mock({"tool_calls": [{"name": "finish_chat_turn", "arguments": {}}]})
 
-            task = GtAgentTask(
+            task = GtScheculeTask(
                 id=1,
                 agent_id=alice.gt_agent.id,
                 task_type=AgentTaskType.ROOM_MESSAGE,
@@ -157,7 +157,7 @@ class TestIntegrationMultiAgentChat(ServiceTestCase):
                 {"tool_calls": [{"name": "send_chat_msg", "arguments": {"room_name": "turn_checker_room", "msg": "最终消息"}}]},
                 {"tool_calls": [{"name": "finish_chat_turn", "arguments": {}}]},
             ]
-            task = GtAgentTask(
+            task = GtScheculeTask(
                 id=2,
                 agent_id=alice.gt_agent.id,
                 task_type=AgentTaskType.ROOM_MESSAGE,
@@ -279,7 +279,7 @@ class TestIntegrationMultiAgentChat(ServiceTestCase):
             assert pending.id == "call_pending"
 
             # 后续推理：返回 finish_chat_turn 结束 turn
-            task = GtAgentTask(
+            task = GtScheculeTask(
                 id=3,
                 agent_id=alice.gt_agent.id,
                 task_type=AgentTaskType.ROOM_MESSAGE,

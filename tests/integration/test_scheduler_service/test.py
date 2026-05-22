@@ -12,7 +12,7 @@ import service.agentService as agentService
 import service.schedulerService as scheduler
 from service.agentService import Agent
 from service.messageBus import EventBusMessage
-from model.dbModel.gtAgentTask import GtAgentTask
+from model.dbModel.gtScheculeTask import GtScheculeTask
 from model.dbModel.gtRoom import GtRoom
 from model.dbModel.gtTeam import GtTeam
 from model.dbModel.gtAgent import GtAgent
@@ -110,8 +110,8 @@ class TestSchedulerRun(ServiceTestCase):
         _force_schedule_running()
 
         with patch("service.schedulerService.agentService.get_agent", return_value=alice), \
-             patch("service.schedulerService.gtAgentTaskManager") as mock_task_manager:
-            mock_task_manager.create_task = AsyncMock(return_value=GtAgentTask(
+             patch("service.schedulerService.gtScheculeTaskManager") as mock_task_manager:
+            mock_task_manager.create_task = AsyncMock(return_value=GtScheculeTask(
                 id=1,
                 agent_id=1,
                 task_type=AgentTaskType.ROOM_MESSAGE,
@@ -145,16 +145,16 @@ class TestSchedulerRun(ServiceTestCase):
         """验证 Agent.task_consumer.consume 内部错误后进入 FAILED 状态。"""
         real_agent = Agent(GtAgent(id=1, team_id=1, name="test", role_template_id=1, model="model"), "prompt")
 
-        with patch("service.agentService.agentTaskConsumer.gtAgentTaskManager") as mock_task_manager, \
+        with patch("service.agentService.agentTaskConsumer.gtScheculeTaskManager") as mock_task_manager, \
              patch("service.agentService.agentTaskConsumer.agentActivityService") as mock_activity_svc:
             mock_activity_svc.add_activity = AsyncMock()
-            mock_task_manager.get_first_unfinish_task = AsyncMock(return_value=GtAgentTask(
+            mock_task_manager.get_first_unfinish_task = AsyncMock(return_value=GtScheculeTask(
                 id=1,
                 agent_id=1,
                 task_type=AgentTaskType.ROOM_MESSAGE,
                 task_data={"room_id": 1},
             ))
-            mock_task_manager.transition_task_status = AsyncMock(return_value=GtAgentTask(
+            mock_task_manager.transition_task_status = AsyncMock(return_value=GtScheculeTask(
                 id=1,
                 agent_id=1,
                 task_type=AgentTaskType.ROOM_MESSAGE,
@@ -172,16 +172,16 @@ class TestSchedulerRun(ServiceTestCase):
         """任务失败后，即使仍有 pending task，也不应自动续起消费。"""
         real_agent = Agent(GtAgent(id=1, team_id=1, name="test", role_template_id=1, model="model"), "prompt")
 
-        with patch("service.agentService.agentTaskConsumer.gtAgentTaskManager") as mock_task_manager, \
+        with patch("service.agentService.agentTaskConsumer.gtScheculeTaskManager") as mock_task_manager, \
              patch("service.agentService.agentTaskConsumer.agentActivityService") as mock_activity_svc:
             mock_activity_svc.add_activity = AsyncMock()
-            mock_task_manager.get_first_unfinish_task = AsyncMock(return_value=GtAgentTask(
+            mock_task_manager.get_first_unfinish_task = AsyncMock(return_value=GtScheculeTask(
                 id=1,
                 agent_id=1,
                 task_type=AgentTaskType.ROOM_MESSAGE,
                 task_data={"room_id": 1},
             ))
-            mock_task_manager.transition_task_status = AsyncMock(return_value=GtAgentTask(
+            mock_task_manager.transition_task_status = AsyncMock(return_value=GtScheculeTask(
                 id=1,
                 agent_id=1,
                 task_type=AgentTaskType.ROOM_MESSAGE,
@@ -222,8 +222,8 @@ class TestSchedulerRun(ServiceTestCase):
         _force_schedule_running()
 
         with patch("service.schedulerService.agentService.get_agent", return_value=alice), \
-             patch("service.schedulerService.gtAgentTaskManager") as mock_task_manager:
-            mock_task_manager.create_task = AsyncMock(return_value=GtAgentTask(
+             patch("service.schedulerService.gtScheculeTaskManager") as mock_task_manager:
+            mock_task_manager.create_task = AsyncMock(return_value=GtScheculeTask(
                 id=1,
                 agent_id=1,
                 task_type=AgentTaskType.ROOM_MESSAGE,
@@ -242,7 +242,7 @@ class TestSchedulerRun(ServiceTestCase):
         """need_scheduling=False 时不应创建任务（特殊成员、IDLE 等场景均由 roomService 设置该标志）。"""
         await scheduler.startup()
 
-        with patch("service.schedulerService.gtAgentTaskManager") as mock_task_manager:
+        with patch("service.schedulerService.gtScheculeTaskManager") as mock_task_manager:
             msg = EventBusMessage(
                 topic=MessageBusTopic.ROOM_STATUS_CHANGED,
                 payload={"need_scheduling": False},
@@ -274,8 +274,8 @@ class TestSchedulerRun(ServiceTestCase):
         _force_schedule_running()
 
         with patch("service.schedulerService.agentService.get_agent", return_value=alice), \
-             patch("service.schedulerService.gtAgentTaskManager") as mock_task_manager:
-            mock_task_manager.create_task = AsyncMock(return_value=GtAgentTask(
+             patch("service.schedulerService.gtScheculeTaskManager") as mock_task_manager:
+            mock_task_manager.create_task = AsyncMock(return_value=GtScheculeTask(
                 id=1,
                 agent_id=1,
                 task_type=AgentTaskType.ROOM_MESSAGE,
@@ -331,10 +331,10 @@ class TestSchedulerRun(ServiceTestCase):
         _force_schedule_running()
 
         with patch("service.schedulerService.agentService.get_agent", return_value=alice), \
-             patch("service.schedulerService.gtAgentTaskManager") as mock_task_manager:
+             patch("service.schedulerService.gtScheculeTaskManager") as mock_task_manager:
             mock_task_manager.create_task = AsyncMock(side_effect=[
-                GtAgentTask(id=1, agent_id=1, task_type=AgentTaskType.ROOM_MESSAGE, task_data={"room_id": r1.room_id}),
-                GtAgentTask(id=2, agent_id=1, task_type=AgentTaskType.ROOM_MESSAGE, task_data={"room_id": r2.room_id}),
+                GtScheculeTask(id=1, agent_id=1, task_type=AgentTaskType.ROOM_MESSAGE, task_data={"room_id": r1.room_id}),
+                GtScheculeTask(id=2, agent_id=1, task_type=AgentTaskType.ROOM_MESSAGE, task_data={"room_id": r2.room_id}),
             ])
             mock_task_manager.has_pending_room_task = AsyncMock(side_effect=[False, False])
             msg_r1 = EventBusMessage(
@@ -485,7 +485,7 @@ class TestScheduleGate(ServiceTestCase):
         # startup 后状态为 STOPPED
         assert scheduler.get_schedule_state() == ScheduleState.STOPPED
 
-        with patch("service.schedulerService.gtAgentTaskManager") as mock_task_manager:
+        with patch("service.schedulerService.gtScheculeTaskManager") as mock_task_manager:
             msg = EventBusMessage(
                 topic=MessageBusTopic.ROOM_STATUS_CHANGED,
                 payload={

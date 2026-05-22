@@ -10,7 +10,7 @@
 | `room_states` | `GtRoom.agent_read_index` + `turn_pos` | 房间运行时状态（已读游标 + 轮次位置） |
 | `agent_histories` | `GtAgentHistory` | Agent LLM 对话历史（保证 Agent 可继续运行） |
 | `agent_activities` | `GtAgentActivity` | Agent 活动记录 |
-| `agent_tasks` | `GtAgentTask` | Agent 任务队列（保证 Agent 可从断点恢复） |
+| `agent_tasks` | `GtScheculeTask` | Agent 任务队列（保证 Agent 可从断点恢复） |
 
 **不包含**：`agent_histories` 中的 COMPACT_SUMMARY 以外的大体积内容不做特殊裁剪，全量导出。
 
@@ -175,7 +175,7 @@ POST /teams/{team_id}/import/history.json
 |------|------|
 | `src/dal/db/gtAgentActivityManager.py` | 新增 `get_all_activities_by_team`、`delete_activities_by_team` |
 | `src/dal/db/gtAgentHistoryManager.py` | 新增 `get_all_histories_by_team` |
-| `src/dal/db/gtAgentTaskManager.py` | 新增 `get_all_tasks_by_team` |
+| `src/dal/db/gtScheculeTaskManager.py` | 新增 `get_all_tasks_by_team` |
 | `src/route.py` | 注册 2 条新路由，import teamDataController |
 
 ---
@@ -250,8 +250,8 @@ async def delete_activities_by_team(team_id: int) -> int:
 async def get_all_histories_by_team(team_id: int) -> list[GtAgentHistory]:
     """全量查询所有 agent 的历史记录，按 agent_id, seq asc。"""
 
-# gtAgentTaskManager.py
-async def get_all_tasks_by_team(team_id: int) -> list[GtAgentTask]:
+# gtScheculeTaskManager.py
+async def get_all_tasks_by_team(team_id: int) -> list[GtScheculeTask]:
     """全量查询 team 下所有 agent 的任务记录。"""
 ```
 

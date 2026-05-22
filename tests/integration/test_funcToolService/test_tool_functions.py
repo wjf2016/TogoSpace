@@ -10,7 +10,7 @@ import service.ormService as ormService
 import service.persistenceService as persistenceService
 import service.roomService as roomService
 import service.agentService as agentService
-from dal.db import gtAgentTaskManager, gtTeamManager, gtAgentManager
+from dal.db import gtScheculeTaskManager, gtTeamManager, gtAgentManager
 from model.dbModel.gtAgent import GtAgent
 from model.dbModel.gtDept import GtDept
 from model.dbModel.gtTeam import GtTeam
@@ -254,12 +254,12 @@ class TestToolFunctions(ServiceTestCase):
         )
         await self.create_room(TEAM, "ops-room", ["alice", "bob", "char"])
 
-        task = await gtAgentTaskManager.create_task(
+        task = await gtScheculeTaskManager.create_task(
             bob.id,
             AgentTaskType.ROOM_MESSAGE,
             {"room_id": 1},
         )
-        await gtAgentTaskManager.update_task_status(
+        await gtScheculeTaskManager.update_task_status(
             task.id,
             AgentTaskStatus.FAILED,
             error_message="llm provider unavailable during team restore",

@@ -14,7 +14,7 @@ from service.agentService import promptBuilder
 from service.funcToolService.funcToolType import get_function_metadata
 from service.agentService.toolRegistry import build_runtime_allow_specs
 from service import funcToolService, roomService
-from model.dbModel.gtAgentTask import GtAgentTask
+from model.dbModel.gtScheculeTask import GtScheculeTask
 from model.dbModel.gtAgentHistory import GtAgentHistory
 from constants import AgentHistoryStatus, OpenaiApiRole, ToolCategory
 from util import llmApiUtil
@@ -150,7 +150,7 @@ class ClaudeSdkAgentDriver(AgentDriver):
             self._sdk_client = None
         await super().shutdown()
 
-    async def run_chat_turn(self, task: GtAgentTask, synced_count: int) -> None:
+    async def run_chat_turn(self, task: GtScheculeTask, synced_count: int) -> None:
         room_id = task.task_data.get("room_id")
         if room_id is None:
             logger.warning(f"run_chat_turn 跳过：task 缺少 room_id, agent_id={self.host.gt_agent.id}, task_id={task.id}")

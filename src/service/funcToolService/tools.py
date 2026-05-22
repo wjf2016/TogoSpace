@@ -286,14 +286,14 @@ async def get_agent_info(agent_name: Optional[str] = None, _context: ToolCallCon
         return {"success": False, "message": "当前没有可用的团队上下文。"}
 
     from service import agentService, deptService
-    from dal.db import gtAgentTaskManager
+    from dal.db import gtScheculeTaskManager
 
     team_agents = agentService.get_team_agents(team_id)
 
     async def _build_agent_dict(agent: Any, *, detail: bool) -> dict[str, Any]:
         agent_id = agent.gt_agent.id
         dept = await deptService.get_agent_dept(team_id, agent_id)
-        first_task = await gtAgentTaskManager.get_first_unfinish_task(agent_id) if agent.status == AgentStatus.FAILED else None
+        first_task = await gtScheculeTaskManager.get_first_unfinish_task(agent_id) if agent.status == AgentStatus.FAILED else None
         info: dict[str, Any] = {
             "id": agent_id,
             "name": agent.gt_agent.name,

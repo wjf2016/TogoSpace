@@ -7,7 +7,7 @@
 任务生命周期涉及 4 个组件协作：
 
 ```
-schedulerService          AgentTaskConsumer          gtAgentTaskManager          AgentTurnRunner
+schedulerService          AgentTaskConsumer          gtScheculeTaskManager          AgentTurnRunner
     │                          │                          │                          │
     │ ── create_task ─────────>│                          │                          │
     │ ── start() ─────────────>│                          │                          │
@@ -21,7 +21,7 @@ schedulerService          AgentTaskConsumer          gtAgentTaskManager         
 |------|------|
 | `schedulerService` | 监听房间轮次事件，创建任务记录（DB），触发消费 |
 | `AgentTaskConsumer` | 消费循环主体：认领任务 → 执行 → 状态流转 → 失败恢复 |
-| `gtAgentTaskManager` | DAL 层，所有任务状态的数据库读写 |
+| `gtScheculeTaskManager` | DAL 层，所有任务状态的数据库读写 |
 | `AgentTurnRunner` | 单轮 turn 执行，内部再按 step 推进消息同步、推理与工具调用 |
 
 ## 2. 状态定义
@@ -104,7 +104,7 @@ schedulerService._on_agent_turn()
 ├── 1. 去重：has_pending_room_task(agent_id, room_id)
 │        → 同一房间已有 PENDING 任务时跳过
 │
-├── 2. 写库：gtAgentTaskManager.create_task()
+├── 2. 写库：gtScheculeTaskManager.create_task()
 │        → 创建 PENDING 状态的任务记录
 │
 └── 3. 触发消费：agent.start_consumer_task()
@@ -193,9 +193,9 @@ async def _execute_task(claimed_task, resumed):
 `get_first_unfinish_task()` 查询 PENDING 和 FAILED 两种状态，按 `id ASC` 排序：
 
 ```python
-# dal/db/gtAgentTaskManager.py
+# dal/db/gtScheculeTaskManager.py
 async def get_first_unfinish_task(agent_id):
-    return GtAgentTask
+    return GtScheculeTask
         .where(status.in_([PENDING, FAILED]))
         .order_by(id.asc())
         .first()
@@ -287,13 +287,13 @@ core.restore_state()
 
 ```python
 async def transition_task_status(task_id, from_status, to_status):
-    result = GtAgentTask
+    result = GtScheculeTask
         .update(status=to_status)
         .where(id == task_id, status == from_status)
         .execute()
     if result == 0:    # 状态已被其他消费者改变
         return None
-    return GtAgentTask.get(task_id)
+    return GtScheculeTask.get(task_id)
 ```
 
 - 如果 CAS 返回 None，`consume()` 会 `continue` 重新查询
@@ -380,7 +380,7 @@ if self._aio_consumer_task is current_consumer:
 | `resume_failed()` | 恢复最早的 FAILED 任务 |
 | `_publish_status(status)` | 通过 messageBus 广播状态变更 |
 
-### gtAgentTaskManager
+### gtScheculeTaskManager
 
 | 方法 | 说明 |
 |------|------|

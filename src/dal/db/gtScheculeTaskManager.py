@@ -2,16 +2,16 @@ from __future__ import annotations
 
 from constants import AgentTaskStatus, AgentTaskType
 from model.dbModel.gtAgent import GtAgent
-from model.dbModel.gtAgentTask import GtAgentTask
+from model.dbModel.gtScheculeTask import GtScheculeTask
 
 
 async def create_task(
     agent_id: int,
     task_type: AgentTaskType,
     task_data: dict,
-) -> GtAgentTask:
+) -> GtScheculeTask:
     """创建 Agent 任务记录。"""
-    task = GtAgentTask(
+    task = GtScheculeTask(
         agent_id=agent_id,
         task_type=task_type,
         task_data=task_data,
@@ -36,32 +36,32 @@ async def has_pending_room_task(
     if include_failed:
         statuses.append(AgentTaskStatus.FAILED)
     tasks = await (
-        GtAgentTask
+        GtScheculeTask
         .select()
         .where(
-            GtAgentTask.agent_id == agent_id,
-            GtAgentTask.status.in_(statuses),
+            GtScheculeTask.agent_id == agent_id,
+            GtScheculeTask.status.in_(statuses),
         )
-        .order_by(GtAgentTask.id.asc())
+        .order_by(GtScheculeTask.id.asc())
         .aio_execute()
     )
     return any(task.task_data.get("room_id") == room_id for task in tasks)
 
 
-async def get_first_unfinish_task(agent_id: int) -> GtAgentTask | None:
+async def get_first_unfinish_task(agent_id: int) -> GtScheculeTask | None:
     """获取 Agent 最早的未完成任务。
 
     未完成任务当前定义为 PENDING / RUNNING / FAILED。
     这样失败任务会按顺序阻断后续任务，而恢复中的 RUNNING 任务也能继续被消费。
     """
     return await (
-        GtAgentTask
+        GtScheculeTask
         .select()
         .where(
-            GtAgentTask.agent_id == agent_id,
-            GtAgentTask.status.in_([AgentTaskStatus.PENDING, AgentTaskStatus.RUNNING, AgentTaskStatus.FAILED]),
+            GtScheculeTask.agent_id == agent_id,
+            GtScheculeTask.status.in_([AgentTaskStatus.PENDING, AgentTaskStatus.RUNNING, AgentTaskStatus.FAILED]),
         )
-        .order_by(GtAgentTask.id.asc())
+        .order_by(GtScheculeTask.id.asc())
         .aio_first()
     )
 
@@ -81,36 +81,36 @@ async def transition_task_status(
     task_id: int,
     from_status: AgentTaskStatus,
     to_status: AgentTaskStatus,
-) -> GtAgentTask | None:
+) -> GtScheculeTask | None:
     """原子地迁移任务状态。
 
     仅当任务当前状态等于 ``from_status`` 时，才会更新为 ``to_status``。
     若任务状态已变化，则返回 None。
     """
     result = await (
-        GtAgentTask
+        GtScheculeTask
         .update(status=to_status)
         .where(
-            GtAgentTask.id == task_id,
-            GtAgentTask.status == from_status,
+            GtScheculeTask.id == task_id,
+            GtScheculeTask.status == from_status,
         )
         .aio_execute()
     )
     if result == 0:
         return None
-    return await GtAgentTask.aio_get_or_none(GtAgentTask.id == task_id)
+    return await GtScheculeTask.aio_get_or_none(GtScheculeTask.id == task_id)
 
 
-async def get_running_tasks(agent_id: int) -> list[GtAgentTask]:
+async def get_running_tasks(agent_id: int) -> list[GtScheculeTask]:
     """获取 Agent 的 RUNNING 任务（用于启动恢复）。"""
     return await (
-        GtAgentTask
+        GtScheculeTask
         .select()
         .where(
-            GtAgentTask.agent_id == agent_id,
-            GtAgentTask.status == AgentTaskStatus.RUNNING,
+            GtScheculeTask.agent_id == agent_id,
+            GtScheculeTask.status == AgentTaskStatus.RUNNING,
         )
-        .order_by(GtAgentTask.id.asc())
+        .order_by(GtScheculeTask.id.asc())
         .aio_execute()
     )
 
@@ -119,20 +119,20 @@ async def update_task_status(
     task_id: int,
     status: AgentTaskStatus,
     error_message: str | None = None,
-) -> GtAgentTask:
+) -> GtScheculeTask:
     """更新任务状态。"""
     update_fields: dict = {"status": status}
     if error_message is not None:
         update_fields["error_message"] = error_message
 
     await (
-        GtAgentTask
+        GtScheculeTask
         .update(**update_fields)
-        .where(GtAgentTask.id == task_id)
+        .where(GtScheculeTask.id == task_id)
         .aio_execute()
     )
-    row: GtAgentTask | None = await GtAgentTask.aio_get_or_none(
-        GtAgentTask.id == task_id,
+    row: GtScheculeTask | None = await GtScheculeTask.aio_get_or_none(
+        GtScheculeTask.id == task_id,
     )
     if row is None:
         raise RuntimeError(f"update task status failed: task_id={task_id}")
@@ -147,8 +147,8 @@ async def delete_tasks_by_team(team_id: int) -> int:
         .where(GtAgent.team_id == team_id)
     )
     return await (
-        GtAgentTask
+        GtScheculeTask
         .delete()
-        .where(GtAgentTask.agent_id.in_(agent_ids_query))  # type: ignore[attr-defined]
+        .where(GtScheculeTask.agent_id.in_(agent_ids_query))  # type: ignore[attr-defined]
         .aio_execute()
     )
