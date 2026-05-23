@@ -11,7 +11,7 @@ from service.agentService.agent import Agent
 from service.agentService.driver import normalize_driver_config
 from service.agentService.promptBuilder import build_agent_system_prompt
 from service import llmService, roomService, persistenceService, deptService, agentActivityService
-from dal.db import gtTeamManager, gtAgentManager, gtRoleTemplateManager, gtScheculeTaskManager
+from dal.db import gtTeamManager, gtAgentManager, gtRoleTemplateManager, gtScheculeTaskManager, gtRoomManager
 from peewee import IntegrityError
 from exception import TogoException
 from constants import AgentStatus, AgentTaskStatus, DriverType, EmployStatus, SpecialAgent
@@ -366,6 +366,17 @@ async def overwrite_team_agents(team_id: int, agents_data: list[GtAgent]) -> lis
             error_message="成员保存失败，名称可能已存在或工号重复",
             error_code="MEMBER_SAVE_FAILED",
         ) from e
+
+    # 同步修改关联的私聊房间名称
+    for agent in agents_to_save:
+        if agent.id is not None:
+            old_agent = existing_by_id.get(agent.id)
+            if old_agent and old_agent.name != agent.name:
+                private_room = await gtRoomManager.get_operator_control_room(team_id, agent.id)
+                if private_room and private_room.name != agent.name:
+                    private_room.name = agent.name
+                    await gtRoomManager.save_room(private_room)
+                    logger.info(f"同步更新 Agent (ID={agent.id}) 的私聊房间 (ID={private_room.id}) 名称为 {agent.name}")
 
     return await gtAgentManager.get_team_all_agents(team_id, EmployStatus.ON_BOARD)
 
