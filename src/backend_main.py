@@ -46,11 +46,26 @@ def _check_single_instance() -> None:
     try:
         with open(_PID_FILE) as f:
             pid = int(f.read().strip())
-        os.kill(pid, 0)  # 进程存活则抛 OSError
+    except (FileNotFoundError, ValueError):
+        return
+
+    is_alive = False
+    if sys.platform == "win32":
+        import ctypes
+        handle = ctypes.windll.kernel32.OpenProcess(0x1000, False, pid)
+        if handle:
+            ctypes.windll.kernel32.CloseHandle(handle)
+            is_alive = True
+    else:
+        try:
+            os.kill(pid, 0)
+            is_alive = True
+        except (ProcessLookupError, PermissionError):
+            is_alive = False
+
+    if is_alive:
         print(f"后端已在运行（PID {pid}），拒绝启动第二个实例。", file=sys.stderr)
         sys.exit(1)
-    except (FileNotFoundError, ValueError, ProcessLookupError):
-        pass  # 文件不存在、内容非法、进程不存在，均视为可启动
 
 
 def _write_pid() -> None:
