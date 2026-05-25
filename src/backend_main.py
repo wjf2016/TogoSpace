@@ -52,10 +52,13 @@ def _check_single_instance() -> None:
     is_alive = False
     if sys.platform == "win32":
         import ctypes
+        from ctypes import wintypes
         handle = ctypes.windll.kernel32.OpenProcess(0x1000, False, pid)
         if handle:
+            exit_code = wintypes.DWORD()
+            if ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+                is_alive = (exit_code.value == 259)  # 259 是 STILL_ACTIVE
             ctypes.windll.kernel32.CloseHandle(handle)
-            is_alive = True
     else:
         try:
             os.kill(pid, 0)
